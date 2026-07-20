@@ -27,19 +27,28 @@ export class GameManager {
 private addHandler (socket: WebSocket) {
     socket.on('message', (data) => {
         const messages = JSON.parse(data.toString());
+
+
+
+
          if(messages.type === INIT_GAME) {
-          if (this.pendingUser) {
-            const game = new Game(this.pendingUser, socket);
-            this.games.push(game);
-            this.pendingUser = null;
-          } else {
+
+            if (this.pendingUser) {
+                const game = new Game(this.pendingUser, socket);
+                this.games.push(game);
+               this.pendingUser = null;
+             } else {
                this.pendingUser = socket;
-          }
+            }
          }
 
-         if (messages.type === MOVE) {
-          
 
+
+         if (messages.type === MOVE) {
+              const game = this.games.find(game => game.player1 === socket || game.player2 === socket);
+              if (game) {
+                game.makeMove(socket, messages.payload);
+              }
          }
         
         });
