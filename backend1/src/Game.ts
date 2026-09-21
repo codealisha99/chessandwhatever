@@ -38,8 +38,8 @@ export class Game {
     makeMove(player: WebSocket, move: {from: string;to: string;}) 
     {
         // 1validating the move 
-        if(this.board.move.length % 2 === 0 && player !== this.player1) { return; }
-        if(this.board.move.length % 2 === 1 && player !== this.player2) { return; }
+        if(this.board.moves().length % 2 === 0 && player !== this.player1) { return; }
+        if(this.board.moves().length % 2 === 1 && player !== this.player2) { return; }
 
 
          //2) making the move on the board
@@ -69,13 +69,13 @@ export class Game {
          }))
         
          //4) sending the move to the other player
-         if (this.board.moves.length % 2 === 0) {
-            this.player2.emit(JSON.stringify({
+         if (this.board.moves().length % 2 === 0) {
+            this.player2.send(JSON.stringify({
                 type: MOVE,
                 payload: move
             }))
          } else {
-            this.player1.emit(JSON.stringify({
+            this.player1.(JSON.stringify({
                 type: MOVE,
                 payload: move
             }))

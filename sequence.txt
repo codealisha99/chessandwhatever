@@ -1,0 +1,51 @@
+i installed ws and chess.js library
+setup the backend in typescript and frontend separate
+create  index.ts in the src 
+created the websocket connection with 3 behaviours error, send, message on connections
+connected with postman tested actually
+then created gamemanager.ts which is like the arena of the chess 
+then we create a global class named game manager with constructor of its variable which has functions like (addUsers) to the game and (removeuser) from the game 
+we created variables game which is of type array.  game is an array of games 
+then a function (handlemessage) which is private 
+then we craeted an object of gamemanager in index.ts
+changing the methods ws to gamemanager.addUser in index.ts
+
+adding pendingguser as variable in gamemanagers and the type wud be websocket and the users of the type array which will have
+websockets as its elements.
+
+addUsers will addhandler methods
+
+then comments the code to write for messagehandlers when the user is added it will also contain a message 
+of in its metadata and that will be recognised bythe addhandler and then it will do according 
+added init for message and created messages.ts for simpilicity 
+
+then we create the game.ts as we are going to send the pendinguser to the game 
+so we will create the game Object 
+game will be a class whiich will have variables as player 1 and player 2 board as string[][] moves starttime
+
+EVERYTIME a pending user is there it create a game class with arguemnts as peniding user and its websocket 
+
+if the the message or the flag is MOVE then it will check whther in which game//socket does the player
+belongs to as player 1 or player 2
+
+then if it finds it then game becomes  true and then the makemove method in the game object is called
+
+
+games  = [game1, game2, game3,.......] all game is an object 
+
+so the makemove method of game class will take socket and moves(str from till to) as args and then 
+it will validate the moves as 1) validation
+                              2) is it this users move 
+                              3) is the move valid 
+
+then update the board wih=th the moves 
+and push the move 
+
+
+if the game is over send the updated board to both the players..
+
+2nd day
+for moves install chess.js and it will give the moves
+
+we updated the make move when the  message type will be MOVE then it will be see whouse turn its is it will update the board
+

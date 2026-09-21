@@ -10,25 +10,27 @@ const wss = new WebSocketServer({
 const gameManager = new GameManager();
 
 console.log("Listening on ws://localhost:8080");
-
+    //persistent connection
      wss.on('connection', function connection(ws) {
-           gameManager.addUser(ws);
+        
+         //add user to the game manager
+        gameManager.addUser(ws);
 
-
-            ws.on('disconnect', () => {
+        //1)
+        ws.on('disconnect', () => {
         gameManager.removeUser(ws);
             });
  
-          console.log("Client connected!");
+        console.log("Client connected!");
 
-    
-            ws.on('error', console.error);
+        //2)
+        ws.on('error', console.error);
 
-
-            ws.on("message", (message) => {
+        //3)
+        ws.on("message", (message) => {
                 console.log("Received:", message.toString());
             });
-
-    ws.send('something');
+        //4)
+        ws.send('something');
 
 });

@@ -1,0 +1,12 @@
+wht is the meaning of wss.on ('connection', function connection(ws)){} wht is ws?
+import { WebSocketServer }from 'ws'; vs import { WebSocket } from "ws";
+ addUser(socket: WebSocket) what does this mean why does it have socket websocket?
+ 
+ when we change ws.adduser to gamemanager.adduser wht is the difference that happens underthehood?
+         A WebSocket connection is a communication mechanism. A game manager is application logic that decides what
+          to do with those connections.
+
+
+how would we distinguish between user and pending user?
+wht does this do this.users = this.users.filter(user => user !== socket);??
+
