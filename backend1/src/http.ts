@@ -184,7 +184,13 @@ const MIME: Record<string, string> = {
 /** Serves the built frontend (production). SPA fallback to index.html. */
 function serveStatic(pathname: string, res: ServerResponse): void {
   const root = config.staticDir;
-  const safe = normalize(decodeURIComponent(pathname)).replace(/^([/\\])+/, "");
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    throw new HttpError(400, "Malformed URL");
+  }
+  const safe = normalize(decoded).replace(/^([/\\])+/, "");
   let file = join(root, safe);
   if (!file.startsWith(root + sep) && file !== root) throw new HttpError(403, "Forbidden");
   const isFile = (p: string) => {
