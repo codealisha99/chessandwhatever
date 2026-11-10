@@ -85,8 +85,8 @@ export default function Home() {
     <div className="mx-auto max-w-[1320px] px-5 pb-16 pt-10 sm:px-8 lg:pt-16">
       <section id="play" className="grid scroll-mt-24 gap-x-16 gap-y-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,500px)]" aria-label="Play">
         <div>
-          <h1 className="display animate-rise text-[clamp(4.5rem,11vw,9.5rem)] text-baize-100">Your move.</h1>
-          <p className="mt-6 max-w-[36rem] text-[17px] leading-relaxed text-baize-300">
+          <h1 className="display animate-rise text-[clamp(4.5rem,11vw,9.5rem)] text-ink-100">Your move.</h1>
+          <p className="mt-6 max-w-[36rem] text-[17px] leading-relaxed text-ink-300">
             {user
               ? "Pick a clock and you'll be paired with the next player waiting for it."
               : "Rated chess against real people, timed by the server. Pick a clock and you'll be paired with the next player waiting for it. No sign-up: you get a guest account and a 1200 rating on the spot."}
@@ -96,8 +96,8 @@ export default function Home() {
             <ClockGrid searching={searching} busy={busy} waitingBy={waitingBy} onPick={quickPlay} />
           </div>
 
-          <p className="mt-7 flex min-h-5 items-center gap-2 text-[13px] text-baize-400" aria-live="polite">
-            {(searching || !!stats?.online) && <span className={`size-1.5 shrink-0 rounded-full bg-brass-500 ${searching ? 'animate-pulse' : ''}`} />}
+          <p className="mt-7 flex min-h-5 items-center gap-2 text-[13px] text-ink-400" aria-live="polite">
+            {(searching || !!stats?.online) && <span className={`size-1.5 shrink-0 rounded-full bg-accent-500 ${searching ? 'animate-pulse' : ''}`} />}
             {searching
               ? 'Looking for an opponent. Tap the clock again to stop.'
               : stats?.online
@@ -123,7 +123,7 @@ export default function Home() {
             <h2 id="closing-heading" className="display text-[clamp(3rem,7vw,5.5rem)]">
               Pick a clock.
             </h2>
-            <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-baize-300">
+            <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-ink-300">
               One click starts the search. If nobody is waiting yet, you'll be first in the queue for the next player who picks the same clock.
             </p>
             <div className="mt-9 grid max-w-2xl grid-cols-2 gap-x-3 gap-y-5 pt-1.5 sm:grid-cols-3">
@@ -131,7 +131,7 @@ export default function Home() {
                 <ClockTile key={tc.id} tc={tc} searching={searching === tc.id} disabled={busy} waiting={waitingBy[tc.id] ?? 0} onClick={() => quickPlay(tc.id)} />
               ))}
             </div>
-            <a href="#play" className="mt-7 inline-block text-sm font-semibold text-baize-200 underline decoration-baize-600 underline-offset-4 hover:decoration-baize-200">
+            <a href="#play" className="mt-7 inline-block text-sm font-semibold text-ink-200 underline decoration-ink-600 underline-offset-4 hover:decoration-ink-200">
               See all eleven time controls
             </a>
           </section>

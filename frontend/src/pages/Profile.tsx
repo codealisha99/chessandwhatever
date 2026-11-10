@@ -38,28 +38,28 @@ export default function Profile() {
           <Avatar name={user.username} size={72} online={online} />
           <div className="min-w-0">
             <h1 className="display truncate text-[clamp(3rem,7vw,4.75rem)]">{user.username}</h1>
-            <p className="mt-2 text-[15px] text-baize-400">
+            <p className="mt-2 text-[15px] text-ink-400">
               {online ? <span className="text-win">Online now</span> : 'Offline'}
-              <span className="mx-2 text-baize-600" aria-hidden>/</span>
+              <span className="mx-2 text-ink-600" aria-hidden>/</span>
               {user.isGuest ? 'Guest account' : `Member since ${new Date(user.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`}
             </p>
           </div>
         </div>
         <div className="text-right">
           <div className="digits text-[clamp(4rem,9vw,6.5rem)] leading-[0.85]">{user.rating}</div>
-          <div className="mt-2 text-[13px] text-baize-500">Rating, peak {peak}</div>
+          <div className="mt-2 text-[13px] text-ink-500">Rating, peak {peak}</div>
         </div>
       </header>
 
       <dl className="mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-white/[0.06] sm:grid-cols-4">
         {[
-          ['Games', user.games, 'text-baize-100'],
+          ['Games', user.games, 'text-ink-100'],
           ['Won', user.wins, 'text-win'],
           ['Drawn', user.draws, 'text-draw'],
           ['Lost', user.losses, 'text-loss'],
         ].map(([label, value, cls]) => (
-          <div key={label} className="bg-baize-900 px-5 py-4">
-            <dt className="text-[13px] text-baize-500">{label}</dt>
+          <div key={label} className="bg-ink-900 px-5 py-4">
+            <dt className="text-[13px] text-ink-500">{label}</dt>
             <dd className={`digits mt-1 text-[2.25rem] leading-none ${cls}`}>{value}</dd>
           </div>
         ))}

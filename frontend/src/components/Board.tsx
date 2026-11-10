@@ -222,7 +222,7 @@ export function Board({ fen, orientation, movable, lastMove, arrows = [], onMove
 
   return (
     <div className="board-shell">
-      <div className="board-frame">
+      <div className="board-frame" data-frame={settings.boardTheme === 'walnut' ? 'wood' : 'ink'}>
         {settings.coordinates && (
           <>
             <div className="board-coords ranks" aria-hidden>
@@ -340,7 +340,7 @@ function PromotionPicker({
           key={p}
           type="button"
           aria-label={`Promote to ${PIECE_NAMES[p]}`}
-          className="absolute animate-pop rounded-full bg-baize-100 shadow-xl ring-1 ring-black/20 transition hover:bg-chalk-300"
+          className="absolute animate-pop rounded-full bg-ink-100 shadow-xl ring-1 ring-black/20 transition hover:bg-chalk-300"
           style={{
             left: `${x * 12.5}%`,
             top: `${(down ? y + i : y - i) * 12.5}%`,

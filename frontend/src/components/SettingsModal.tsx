@@ -7,7 +7,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   return (
     <Modal open={open} onClose={onClose} label="Settings">
       <h2 className="display text-4xl">Settings</h2>
-      <div className="mt-6 text-sm font-semibold text-baize-300">Board</div>
+      <div className="mt-6 text-sm font-semibold text-ink-300">Board</div>
       <div className="mt-3 grid grid-cols-3 gap-2.5">
         {(Object.keys(BOARD_THEMES) as BoardTheme[]).map((key) => {
           const t = BOARD_THEMES[key]
@@ -17,14 +17,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               key={key}
               type="button"
               onClick={() => update({ boardTheme: key })}
-              className={`group rounded-xl p-1.5 text-left transition ${active ? 'bg-baize-700 ring-2 ring-chalk-400' : 'bg-baize-800 hover:bg-baize-700'}`}
+              className={`group rounded-xl p-1.5 text-left transition ${active ? 'bg-ink-700 ring-2 ring-chalk-400' : 'bg-ink-800 hover:bg-ink-700'}`}
             >
               <div className="grid aspect-[2/1] grid-cols-4 overflow-hidden rounded-lg">
                 {Array.from({ length: 8 }, (_, i) => (
                   <div key={i} style={{ background: (i + Math.floor(i / 4)) % 2 === 0 ? t.light : t.dark }} />
                 ))}
               </div>
-              <div className={`mt-1.5 px-1 text-xs font-medium ${active ? 'text-baize-100' : 'text-baize-400'}`}>{t.name}</div>
+              <div className={`mt-1.5 px-1 text-xs font-medium ${active ? 'text-ink-100' : 'text-ink-400'}`}>{t.name}</div>
             </button>
           )
         })}

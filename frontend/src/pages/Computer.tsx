@@ -69,7 +69,7 @@ function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
     <div className="mx-auto grid max-w-[1180px] items-center gap-x-20 gap-y-12 px-5 py-10 sm:px-8 sm:py-16 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
       <div>
         <h1 className="display animate-rise text-[clamp(4rem,9vw,6.5rem)]">Practice</h1>
-        <p className="mt-4 max-w-md text-[16px] leading-relaxed text-baize-300">
+        <p className="mt-4 max-w-md text-[16px] leading-relaxed text-ink-300">
           Unrated games against Stockfish, or against a friend on this screen. Take moves back, ask for a hint, and analyse afterwards.
         </p>
 
@@ -81,7 +81,7 @@ function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
               role="tab"
               aria-selected={mode === m}
               onClick={() => setMode(m)}
-              className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition ${mode === m ? 'felt-raised text-baize-100' : 'text-baize-400 hover:text-baize-200'}`}
+              className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition ${mode === m ? 'felt-raised text-ink-100' : 'text-ink-400 hover:text-ink-200'}`}
             >
               <Icon className="size-4" /> {label}
             </button>
@@ -92,9 +92,9 @@ function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
           <>
             <div className="mt-8 flex items-end justify-between gap-4">
               <div>
-                <div className="text-[13px] font-medium text-baize-400">Strength</div>
+                <div className="text-[13px] font-medium text-ink-400">Strength</div>
                 <div className="mt-1 text-[1.7rem] font-bold leading-tight">
-                  {lvl.name} <span className="digits text-lg font-semibold text-baize-500">{lvl.elo}</span>
+                  {lvl.name} <span className="digits text-lg font-semibold text-ink-500">{lvl.elo}</span>
                 </div>
               </div>
             </div>
@@ -107,16 +107,16 @@ function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
                   aria-pressed={l.level === level}
                   onClick={() => setLevel(l.level)}
                   className={`digits h-10 rounded-lg text-[15px] transition ${
-                    l.level === level ? 'bg-chalk-400 text-baize-950 shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)]' : l.level < level ? 'bg-baize-600 text-baize-200' : 'felt-raised text-baize-400 hover:text-baize-100'
+                    l.level === level ? 'bg-chalk-400 text-ink-950 shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)]' : l.level < level ? 'bg-ink-600 text-ink-200' : 'felt-raised text-ink-400 hover:text-ink-100'
                   }`}
                 >
                   {l.level}
                 </button>
               ))}
             </div>
-            <p className="annot mt-3 min-h-6 text-[16px] text-baize-300">{lvl.note}</p>
+            <p className="annot mt-3 min-h-6 text-[16px] text-ink-300">{lvl.note}</p>
 
-            <div className="mt-7 text-[13px] font-medium text-baize-400">Play as</div>
+            <div className="mt-7 text-[13px] font-medium text-ink-400">Play as</div>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {(['white', 'random', 'black'] as const).map((c) => (
                 <button
@@ -125,7 +125,7 @@ function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
                   aria-pressed={color === c}
                   onClick={() => setColor(c)}
                   className={`flex h-12 items-center justify-center gap-2 rounded-xl text-sm font-semibold capitalize transition ${
-                    color === c ? 'felt-raised text-baize-100 ring-2 ring-chalk-400' : 'felt-raised text-baize-400 hover:text-baize-100'
+                    color === c ? 'felt-raised text-ink-100 ring-2 ring-chalk-400' : 'felt-raised text-ink-400 hover:text-ink-100'
                   }`}
                 >
                   {c !== 'random' && <img src={pieceUrl(c === 'white' ? 'wK' : 'bK')} alt="" className="size-6" />}
@@ -135,7 +135,7 @@ function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
             </div>
           </>
         ) : (
-          <p className="annot mt-8 text-[16px] leading-relaxed text-baize-300">Two players share this screen and take turns. Flip the board whenever you like.</p>
+          <p className="annot mt-8 text-[16px] leading-relaxed text-ink-300">Two players share this screen and take turns. Flip the board whenever you like.</p>
         )}
 
         <Button
@@ -152,7 +152,7 @@ function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
         <div className="pointer-events-none">
           <Board fen={START_FEN} orientation={side} movable={null} />
         </div>
-        <figcaption className="mt-5 flex items-center justify-between text-[13px] text-baize-400">
+        <figcaption className="mt-5 flex items-center justify-between text-[13px] text-ink-400">
           <span>{mode === 'bot' ? `You play ${color === 'random' ? 'a random colour' : color}` : 'White moves first'}</span>
           <span>{mode === 'bot' ? `Stockfish 19, level ${lvl.level}` : 'Unrated'}</span>
         </figcaption>
@@ -278,7 +278,7 @@ function OfflineGame({ initial, onNew }: { initial: Saved; onNew: () => void }) 
       captured={c === 'white' ? mat.byWhite : mat.byBlack}
       advantage={c === 'white' ? mat.balance : -mat.balance}
       active={!over && turn === c}
-      right={mode === 'bot' && c !== you && thinking ? <span className="flex items-center gap-2 text-xs text-baize-400"><Spinner className="size-4" /> thinking</span> : undefined}
+      right={mode === 'bot' && c !== you && thinking ? <span className="flex items-center gap-2 text-xs text-ink-400"><Spinner className="size-4" /> thinking</span> : undefined}
     />
   )
 
@@ -300,7 +300,7 @@ function OfflineGame({ initial, onNew }: { initial: Saved; onNew: () => void }) 
               onMove={onMove}
             />
             {!live && (
-              <button type="button" onClick={() => setCursor(null)} className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 animate-pop rounded-full bg-chalk-400 px-4 py-1.5 text-xs font-bold text-baize-950 shadow-xl">
+              <button type="button" onClick={() => setCursor(null)} className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 animate-pop rounded-full bg-chalk-400 px-4 py-1.5 text-xs font-bold text-ink-950 shadow-xl">
                 Back to current position
               </button>
             )}
@@ -315,9 +315,9 @@ function OfflineGame({ initial, onNew }: { initial: Saved; onNew: () => void }) 
                 {mode === 'bot' ? <Bot className="size-4 text-chalk-400" /> : <Users className="size-4 text-chalk-400" />}
                 {mode === 'bot' ? `Stockfish level ${level.level}` : 'Pass & play'}
               </div>
-              <div className="text-xs text-baize-400">{mode === 'bot' ? `${level.name}, plays at ${level.elo.replace("~", "about ")}. Unrated.` : 'Two players, one board'}</div>
+              <div className="text-xs text-ink-400">{mode === 'bot' ? `${level.name}, plays at ${level.elo.replace("~", "about ")}. Unrated.` : 'Two players, one board'}</div>
             </div>
-            <button type="button" title="Flip board" aria-label="Flip board" onClick={() => setFlipped((f) => !f)} className="flex size-8 items-center justify-center rounded-lg text-baize-400 hover:bg-white/5 hover:text-baize-100">
+            <button type="button" title="Flip board" aria-label="Flip board" onClick={() => setFlipped((f) => !f)} className="flex size-8 items-center justify-center rounded-lg text-ink-400 hover:bg-white/5 hover:text-ink-100">
               <FlipVertical2 className="size-4" />
             </button>
           </div>
@@ -362,7 +362,7 @@ function OfflineGame({ initial, onNew }: { initial: Saved; onNew: () => void }) 
             <h2 className="display text-5xl">
               {mode === 'bot' && over.winner ? (over.winner === you ? 'You won' : 'Stockfish wins') : over.headline}
             </h2>
-            <p className="mt-1 text-baize-400">{over.detail}</p>
+            <p className="mt-1 text-ink-400">{over.detail}</p>
             <div className="mt-6 grid gap-2">
               <Button variant="primary" size="lg" onClick={onNew}>
                 <RotateCcw className="size-4" /> New game

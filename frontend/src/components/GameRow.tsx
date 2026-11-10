@@ -17,7 +17,7 @@ export function GameRow({ game: g, userId, compact = false }: { game: GameSummar
       >
         <span
           className={`digits flex size-9 items-center justify-center rounded-lg text-[17px] ${
-            outcome === 'win' ? 'bg-win/15 text-win' : outcome === 'loss' ? 'bg-loss/15 text-loss' : 'bg-white/5 text-baize-300'
+            outcome === 'win' ? 'bg-win/15 text-win' : outcome === 'loss' ? 'bg-loss/15 text-loss' : 'bg-white/5 text-ink-300'
           }`}
         >
           <span aria-hidden>{outcome === 'win' ? 'W' : outcome === 'loss' ? 'L' : '½'}</span>
@@ -25,15 +25,15 @@ export function GameRow({ game: g, userId, compact = false }: { game: GameSummar
         </span>
         <span className="min-w-0">
           <span className="block truncate text-[15px] font-medium">
-            <span className={`mr-2 inline-block size-2.5 rounded-full align-middle ${asWhite ? 'bg-chalk-300' : 'bg-baize-950 ring-1 ring-white/20'}`} />
+            <span className={`mr-2 inline-block size-2.5 rounded-full align-middle ${asWhite ? 'bg-chalk-300' : 'bg-ink-950 ring-1 ring-white/20'}`} />
             <span className="sr-only">{asWhite ? 'as white' : 'as black'} against </span>
-            {opp.name} <span className="digits text-baize-500">{opp.rating}</span>
+            {opp.name} <span className="digits text-ink-500">{opp.rating}</span>
           </span>
-          <span className="block text-[13px] text-baize-500">
+          <span className="block text-[13px] text-ink-500">
             {tcCategory(g.tc)} {g.tc.replace('+', ' + ')}, {g.reason}, {Math.ceil(g.plies / 2)} moves
           </span>
         </span>
-        {!compact && <span className="hidden text-right text-[13px] text-baize-500 sm:block">{new Date(g.endedAt).toLocaleDateString()}</span>}
+        {!compact && <span className="hidden text-right text-[13px] text-ink-500 sm:block">{new Date(g.endedAt).toLocaleDateString()}</span>}
         <span className="digits w-12 text-right text-[17px]">
           <Delta value={asWhite ? g.whiteDelta : g.blackDelta} />
         </span>
@@ -56,7 +56,7 @@ export function RatingChart({ values }: { values: number[] }) {
         <path d={`${d} L${W},${H} L0,${H} Z`} fill="rgb(242 238 227 / 0.06)" />
         <path d={d} fill="none" stroke="rgb(242 238 227)" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
-      <figcaption className="mt-2 flex justify-between text-[13px] text-baize-500">
+      <figcaption className="mt-2 flex justify-between text-[13px] text-ink-500">
         <span>Rating across the last {values.length} games</span>
         <span className="digits">
           {Math.min(...values)} to {Math.max(...values)}

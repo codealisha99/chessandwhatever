@@ -29,7 +29,7 @@ export default function Leaderboard() {
       )}
       {rows && rows.length > 0 && (
         <ol>
-          <li className="grid grid-cols-[3.5rem_1fr_5rem] gap-4 border-b border-white/[0.07] pb-3 text-[13px] text-baize-500 sm:grid-cols-[3.5rem_1fr_6rem_6rem_5rem]">
+          <li className="grid grid-cols-[3.5rem_1fr_5rem] gap-4 border-b border-white/[0.07] pb-3 text-[13px] text-ink-500 sm:grid-cols-[3.5rem_1fr_6rem_6rem_5rem]">
             <span>Rank</span>
             <span>Player</span>
             <span className="hidden text-right sm:block">Games</span>
@@ -44,16 +44,16 @@ export default function Leaderboard() {
                   to={`/u/${u.username}`}
                   className={`grid grid-cols-[3.5rem_1fr_5rem] items-center gap-4 border-b border-white/[0.05] transition-colors hover:bg-white/[0.03] sm:grid-cols-[3.5rem_1fr_6rem_6rem_5rem] ${top ? 'py-5' : 'py-3'} ${u.id === me?.id ? 'bg-chalk-400/[0.06]' : ''}`}
                 >
-                  <span className={`digits ${top ? 'text-[2.4rem] text-baize-100' : 'text-[1.3rem] text-baize-500'}`}>{i + 1}</span>
+                  <span className={`digits ${top ? 'text-[2.4rem] text-ink-100' : 'text-[1.3rem] text-ink-500'}`}>{i + 1}</span>
                   <span className="flex min-w-0 items-center gap-3">
                     <Avatar name={u.username} size={top ? 40 : 30} />
                     <span className={`truncate font-semibold ${top ? 'text-[17px]' : 'text-[15px]'}`}>
                       {u.username}
-                      {u.id === me?.id && <span className="ml-2 text-[13px] font-normal text-baize-400">you</span>}
+                      {u.id === me?.id && <span className="ml-2 text-[13px] font-normal text-ink-400">you</span>}
                     </span>
                   </span>
-                  <span className="digits hidden text-right text-[17px] text-baize-400 sm:block">{u.games}</span>
-                  <span className="digits hidden text-right text-[17px] text-baize-400 sm:block">{score(u)}%</span>
+                  <span className="digits hidden text-right text-[17px] text-ink-400 sm:block">{u.games}</span>
+                  <span className="digits hidden text-right text-[17px] text-ink-400 sm:block">{score(u)}%</span>
                   <span className={`digits text-right ${top ? 'text-[2rem]' : 'text-[1.3rem]'}`}>{u.rating}</span>
                 </Link>
               </li>

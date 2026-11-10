@@ -16,8 +16,8 @@ export function ClockGrid({ searching, busy, waitingBy, onPick }: { searching: s
       {CATEGORIES.map((cat) => (
         <div key={cat} className="grid gap-3 sm:grid-cols-[9rem_1fr] sm:items-center" role="group" aria-label={cat}>
           <div>
-            <div className="text-[15px] font-semibold text-baize-200">{cat}</div>
-            <div className="text-[13px] text-baize-500">{CATEGORY_NOTE[cat]}</div>
+            <div className="text-[15px] font-semibold text-ink-200">{cat}</div>
+            <div className="text-[13px] text-ink-500">{CATEGORY_NOTE[cat]}</div>
           </div>
           <div className="grid grid-cols-2 gap-x-2.5 gap-y-4 pt-1.5 sm:grid-cols-4">
             {TIME_CONTROLS.filter((t) => t.category === cat).map((tc) => (

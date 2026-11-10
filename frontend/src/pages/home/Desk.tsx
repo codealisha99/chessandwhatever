@@ -36,11 +36,11 @@ export function Desk({ user }: { user: User }) {
       {current && (
         <Link
           to={`/play/${current.id}`}
-          className="mb-6 flex items-center justify-between gap-4 rounded-2xl bg-chalk-400 px-5 py-4 text-baize-950 shadow-[0_0_0_1px_var(--color-brass-500),0_16px_40px_-16px_rgb(214_180_122/0.5)] transition hover:bg-chalk-200"
+          className="mb-6 flex items-center justify-between gap-4 rounded-2xl bg-chalk-400 px-5 py-4 text-ink-950 shadow-[0_0_0_1px_var(--color-accent-500),0_16px_40px_-16px_rgb(91_140_255/0.5)] transition hover:bg-chalk-200"
         >
           <span>
-            <span className="flex items-center gap-2 text-[13px] font-semibold text-baize-700">
-              <span className="size-1.5 animate-pulse rounded-full bg-brass-700" /> Game in progress
+            <span className="flex items-center gap-2 text-[13px] font-semibold text-ink-700">
+              <span className="size-1.5 animate-pulse rounded-full bg-accent-700" /> Game in progress
             </span>
             <span className="mt-0.5 block text-[17px] font-semibold">
               Against {current.you === 'white' ? current.black.username : current.white.username}, {current.tc.replace('+', ' + ')}
@@ -55,14 +55,14 @@ export function Desk({ user }: { user: User }) {
       <div className="felt-raised rounded-[24px] p-6 sm:p-7">
         <div className="flex items-end justify-between gap-6">
           <div>
-            <div className="text-[13px] text-baize-400">Your rating</div>
+            <div className="text-[13px] text-ink-400">Your rating</div>
             <div className="digits mt-1 text-[4.25rem] leading-[0.85]">{user.rating}</div>
           </div>
           {history.length > 1 && <Sparkline values={history} />}
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] text-baize-400">
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] text-ink-400">
           <span>
-            <span className="digits text-[15px] text-baize-100">{user.games}</span> {user.games === 1 ? 'game' : 'games'}
+            <span className="digits text-[15px] text-ink-100">{user.games}</span> {user.games === 1 ? 'game' : 'games'}
           </span>
           <span>
             <span className="digits text-[15px] text-win">{user.wins}</span> won
@@ -76,7 +76,7 @@ export function Desk({ user }: { user: User }) {
           {form.length > 0 && (
             <span className="flex gap-1" aria-label={`Last ${form.length} results, newest first: ${form.join(', ')}`}>
               {form.map((o, i) => (
-                <span key={i} className={`h-3.5 w-1.5 rounded-sm ${o === 'win' ? 'bg-win' : o === 'loss' ? 'bg-loss' : 'bg-baize-500'}`} />
+                <span key={i} className={`h-3.5 w-1.5 rounded-sm ${o === 'win' ? 'bg-win' : o === 'loss' ? 'bg-loss' : 'bg-ink-500'}`} />
               ))}
             </span>
           )}
@@ -84,11 +84,11 @@ export function Desk({ user }: { user: User }) {
 
         <h2 className="mt-7 border-t border-white/[0.06] pt-5 text-[15px] font-semibold">Recent games</h2>
         {error ? (
-          <p className="mt-2 text-[14px] text-baize-400">Your games couldn't be loaded. They're still saved; try again in a moment.</p>
+          <p className="mt-2 text-[14px] text-ink-400">Your games couldn't be loaded. They're still saved; try again in a moment.</p>
         ) : !games ? (
           <Spinner className="mt-4 size-5" />
         ) : games.length === 0 ? (
-          <p className="annot mt-2 text-[16px] text-baize-300">Your first rated game will be written down here, ready to replay and analyse.</p>
+          <p className="annot mt-2 text-[16px] text-ink-300">Your first rated game will be written down here, ready to replay and analyse.</p>
         ) : (
           <ul className="mt-1">
             {games.slice(0, RECENT).map((g) => (
@@ -96,13 +96,13 @@ export function Desk({ user }: { user: User }) {
             ))}
           </ul>
         )}
-        <Link to={`/u/${user.username}`} className="mt-4 inline-block text-sm font-semibold text-baize-200 underline decoration-baize-600 underline-offset-4 hover:decoration-baize-200">
+        <Link to={`/u/${user.username}`} className="mt-4 inline-block text-sm font-semibold text-ink-200 underline decoration-ink-600 underline-offset-4 hover:decoration-ink-200">
           {user.isGuest ? 'Your profile' : 'Full history and rating chart'}
         </Link>
       </div>
       {user.isGuest && (
-        <p className="mt-4 text-[13px] leading-relaxed text-baize-500">
-          You're playing as a guest. The rankings list named accounts only. <Link to="/signup" className="font-semibold text-baize-300 underline underline-offset-2">Create an account</Link>
+        <p className="mt-4 text-[13px] leading-relaxed text-ink-500">
+          You're playing as a guest. The rankings list named accounts only. <Link to="/signup" className="font-semibold text-ink-300 underline underline-offset-2">Create an account</Link>
         </p>
       )}
     </aside>

@@ -32,16 +32,16 @@ export function OperaGame() {
         <Board fen={current?.fen ?? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'} orientation="white" movable={null} lastMove={current} />
       </div>
       <figcaption className="mt-6 flex items-start justify-between gap-6">
-        <span className="annot max-w-[19rem] text-[15px] leading-snug text-baize-300">
+        <span className="annot max-w-[19rem] text-[15px] leading-snug text-ink-300">
           Morphy against the Duke of Brunswick and Count Isouard, played in a box at the Paris Opera, 1858.
         </span>
-        <span className="digits shrink-0 text-right text-[1.6rem] leading-none text-baize-200" aria-live="off">
+        <span className="digits shrink-0 text-right text-[1.6rem] leading-none text-ink-200" aria-live="off">
           {current ? (
             <>
-              <span className="text-baize-500">{moveNo}{ply % 2 === 0 ? '.' : '…'}</span> {current.san}
+              <span className="text-ink-500">{moveNo}{ply % 2 === 0 ? '.' : '…'}</span> {current.san}
             </>
           ) : (
-            <span className="text-baize-500">1.</span>
+            <span className="text-ink-500">1.</span>
           )}
         </span>
       </figcaption>

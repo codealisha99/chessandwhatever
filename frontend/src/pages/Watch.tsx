@@ -27,8 +27,8 @@ export default function Watch() {
     <div className="mx-auto max-w-[1320px] px-5 py-12 sm:px-8">
       <PageHeader title="Watch" lede="Every game in progress, strongest pairings first. Open one to follow it move by move, with both clocks live.">
         {games && (
-          <span className="flex items-center gap-2 text-sm text-baize-400">
-            <span className="size-2 animate-pulse rounded-full bg-brass-500" /> {games.length} live
+          <span className="flex items-center gap-2 text-sm text-ink-400">
+            <span className="size-2 animate-pulse rounded-full bg-accent-500" /> {games.length} live
           </span>
         )}
       </PageHeader>
@@ -36,7 +36,7 @@ export default function Watch() {
       {!games && !error && <div className="py-20"><Spinner className="size-8" /></div>}
       {games?.length === 0 && (
         <EmptyState icon={<Tv className="size-7" />} title="Nobody is playing right now">
-          <Link to="/" className="font-semibold text-baize-100 underline underline-offset-4">Start a game</Link> and it will appear here for others to watch.
+          <Link to="/" className="font-semibold text-ink-100 underline underline-offset-4">Start a game</Link> and it will appear here for others to watch.
         </EmptyState>
       )}
       <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -47,7 +47,7 @@ export default function Watch() {
               <Board fen={g.fen} orientation="white" movable={null} />
             </div>
             <Row name={g.white.username} rating={g.white.rating} />
-            <div className="mt-3 flex items-center justify-between text-[13px] text-baize-500">
+            <div className="mt-3 flex items-center justify-between text-[13px] text-ink-500">
               <span>
                 {tcCategory(g.tc)} {g.tc.replace('+', ' + ')}, move {Math.max(1, Math.ceil(g.ply / 2))}
               </span>
@@ -65,6 +65,6 @@ export default function Watch() {
 const Row = ({ name, rating }: { name: string; rating: number }) => (
   <div className="flex items-baseline justify-between gap-3 text-[15px]">
     <span className="truncate font-semibold">{name}</span>
-    <span className="digits text-baize-400">{rating}</span>
+    <span className="digits text-ink-400">{rating}</span>
   </div>
 )

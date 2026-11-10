@@ -81,14 +81,14 @@ export function ClockDemo() {
         <h2 id="clock-heading" className="display text-[clamp(2.8rem,6vw,4.5rem)]">
           The server keeps the time.
         </h2>
-        <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-baize-300">
+        <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-ink-300">
           Every rated game runs on one authoritative clock. Both players, and anyone watching, see the same time.
         </p>
         <dl className="mt-9 grid gap-x-10 gap-y-6 sm:grid-cols-2">
           {RULES.map(([term, detail]) => (
             <div key={term} className="border-t border-white/[0.08] pt-4">
-              <dt className="text-[15px] font-semibold text-baize-100">{term}</dt>
-              <dd className="mt-1 text-[14px] leading-relaxed text-baize-400">{detail}</dd>
+              <dt className="text-[15px] font-semibold text-ink-100">{term}</dt>
+              <dd className="mt-1 text-[14px] leading-relaxed text-ink-400">{detail}</dd>
             </div>
           ))}
         </dl>
@@ -99,18 +99,18 @@ export function ClockDemo() {
           {(['white', 'black'] as const).map((c) => (
             <div key={c}>
               <Clock ms={s.ms[c]} at={s.at} ticking={ticking === c} size="lg" />
-              <div className="mt-3 flex items-center gap-2 text-[13px] text-baize-400">
-                <span className={`size-3 rounded-full ${c === 'white' ? 'bg-chalk-300' : 'bg-baize-950 ring-1 ring-white/20'}`} />
+              <div className="mt-3 flex items-center gap-2 text-[13px] text-ink-400">
+                <span className={`size-3 rounded-full ${c === 'white' ? 'bg-chalk-300' : 'bg-ink-950 ring-1 ring-white/20'}`} />
                 {name(c)}
-                {s.turn === c && <span className="text-brass-300">to move</span>}
+                {s.turn === c && <span className="text-accent-300">to move</span>}
               </div>
             </div>
           ))}
         </div>
-        <figcaption className="annot mt-6 min-h-[3.2em] border-t border-white/[0.06] pt-4 text-[16px] leading-snug text-baize-200">
+        <figcaption className="annot mt-6 min-h-[3.2em] border-t border-white/[0.06] pt-4 text-[16px] leading-snug text-ink-200">
           {reduced ? 'Example, 3 + 2: White moved after 4.3s, so 3:00.0 − 4.3s + 2s increment = 2:57.7.' : s.note}
         </figcaption>
-        <p className="mt-2 text-[12px] text-baize-500">Example game at 3 + 2, using the same clock the board uses.</p>
+        <p className="mt-2 text-[12px] text-ink-500">Example game at 3 + 2, using the same clock the board uses.</p>
       </figure>
     </section>
   )

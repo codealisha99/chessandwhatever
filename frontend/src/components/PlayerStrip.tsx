@@ -27,19 +27,19 @@ export function PlayerStrip({ name, rating, color, captured, advantage, link = t
           role="img"
           aria-label={`Plays ${color}`}
           className={`size-[18px] shrink-0 rounded-full transition-shadow ${
-            color === 'white' ? 'bg-chalk-300 shadow-[inset_0_-2px_0_rgb(0_0_0/0.15)]' : 'bg-baize-950 shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_0_0_1px_rgb(255_255_255/0.1)]'
-          } ${active ? 'ring-[3px] ring-brass-500/60 ring-offset-0' : ''}`}
+            color === 'white' ? 'bg-chalk-300 shadow-[inset_0_-2px_0_rgb(0_0_0/0.15)]' : 'bg-ink-950 shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_0_0_1px_rgb(255_255_255/0.1)]'
+          } ${active ? 'ring-[3px] ring-accent-500/60 ring-offset-0' : ''}`}
         />
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">
             {link ? (
-              <Link to={`/u/${name}`} className="truncate text-[16px] font-semibold text-baize-100 hover:underline hover:underline-offset-4">
+              <Link to={`/u/${name}`} className="truncate text-[16px] font-semibold text-ink-100 hover:underline hover:underline-offset-4">
                 {name}
               </Link>
             ) : (
-              <span className="truncate text-[16px] font-semibold text-baize-100">{name}</span>
+              <span className="truncate text-[16px] font-semibold text-ink-100">{name}</span>
             )}
-            {rating !== undefined && <span className="digits text-[15px] text-baize-400">{rating}</span>}
+            {rating !== undefined && <span className="digits text-[15px] text-ink-400">{rating}</span>}
             {delta !== undefined && delta !== null && (
               <span className="digits text-[15px]">
                 <Delta value={delta} />
@@ -63,7 +63,7 @@ export function PlayerStrip({ name, rating, color, captured, advantage, link = t
                     />
                   ))}
                 </div>
-                {advantage > 0 && <span className="digits ml-1.5 text-[13px] text-baize-400">+{advantage}</span>}
+                {advantage > 0 && <span className="digits ml-1.5 text-[13px] text-ink-400">+{advantage}</span>}
               </>
             )}
           </div>

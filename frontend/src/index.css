@@ -1,30 +1,30 @@
 @import "tailwindcss";
 
 /*
-  Gambit — the club room at night.
-  A walnut board on green baize under one lamp, an ivory clock with brass plungers, the red flag.
+  Gambit — midnight ink.
+  A deep blue-black room, ivory type, one electric blue that means "your turn", "searching" or
+  "live". Red is only for time running out and errors.
   Archivo at three widths: condensed for numbers and headlines, normal for reading, expanded for
   the wordmark. Newsreader italic only for annotation, the way a chess book comments on a game.
-  Brass is spent sparingly: it means "your turn", "searching" or "live".
 */
 
 @theme {
   --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
   --font-annot: "Newsreader", ui-serif, Georgia, serif;
 
-  /* baize: the felt, from deepest shadow up to ivory */
-  --color-baize-950: #0e1714;
-  --color-baize-900: #14201c;
-  --color-baize-850: #192722;
-  --color-baize-800: #1f302a;
-  --color-baize-700: #283d36;
-  --color-baize-600: #355047;
-  /* secondary text: 5.2:1 on baize-900, 4.8:1 on baize-850 (WCAG AA for small text) */
-  --color-baize-500: #7d9489;
-  --color-baize-400: #8ca297;
-  --color-baize-300: #b4c2b9;
-  --color-baize-200: #d9dccf;
-  --color-baize-100: #f2eee3;
+  /* ink: the room, from deepest shadow up to ivory text */
+  --color-ink-950: #080c16;
+  --color-ink-900: #0d1220;
+  --color-ink-850: #121a2c;
+  --color-ink-800: #18213a;
+  --color-ink-700: #222d4a;
+  --color-ink-600: #34405f;
+  /* secondary text: 6.0:1 on ink-900, 5.6:1 on ink-850, 5.1:1 on ink-800 (WCAG AA) */
+  --color-ink-500: #8792ad;
+  --color-ink-400: #a3acc2;
+  --color-ink-300: #c3c9d8;
+  --color-ink-200: #dde1ea;
+  --color-ink-100: #eef0f5;
 
   /* chalk: ivory clock faces and primary actions */
   --color-chalk-200: #fffcf4;
@@ -33,25 +33,21 @@
   --color-chalk-500: #e1dac8;
   --color-chalk-600: #c4bba3;
 
-  /* walnut: board frames */
-  --color-walnut-900: #24170e;
-  --color-walnut-800: #33221a;
-  --color-walnut-700: #4a3020;
-  --color-walnut-500: #7a5236;
+  /* walnut: only for the walnut board theme's frame */
   --color-walnut-300: #c9a77f;
 
-  /* brass: the clock plunger. Live, searching, your turn. */
-  --color-brass-300: #e6c992;
-  --color-brass-400: #d6b47a;
-  --color-brass-500: #c9a46a;
-  --color-brass-700: #7d6136;
+  /* accent: electric blue. Live, searching, your turn. 5:1 or better on every surface. */
+  --color-accent-300: #a9c2ff;
+  --color-accent-400: #7fa4ff;
+  --color-accent-500: #5b8cff;
+  --color-accent-700: #2c4fa8;
 
   --color-flag: #e0533d;
   /* the flag red deepened for small white text on it (4.8:1); the clock keeps the brighter one */
   --color-flag-deep: #c94430;
-  --color-win: #8fd3a8;
-  --color-loss: #ee6f5a;
-  --color-draw: #b4c2b9;
+  --color-win: #6fd6a0;
+  --color-loss: #ff6b5b;
+  --color-draw: #c3c9d8;
 
   --animate-pop: pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
   --animate-rise: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -94,9 +90,9 @@
   letter-spacing: 0;
 }
 
-/* a raised tile of felt, lit from above: hairline highlight on top, soft shadow below */
+/* a raised surface, lit from above: hairline highlight on top, soft shadow below */
 @utility felt-raised {
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0) 60%), var(--color-baize-850);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0) 60%), var(--color-ink-850);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.06),
     inset 0 0 0 1px rgb(255 255 255 / 0.035),
@@ -104,9 +100,9 @@
     0 10px 24px -14px rgb(0 0 0 / 0.7);
 }
 
-/* pressed into the felt: inputs, wells */
+/* pressed into the surface: inputs, wells */
 @utility felt-sunk {
-  background: rgb(9 15 13 / 0.45);
+  background: rgb(4 7 15 / 0.5);
   box-shadow: inset 0 2px 5px rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.03);
 }
 
@@ -118,37 +114,37 @@
 
 :root {
   color-scheme: dark;
-  background: var(--color-baize-900);
-  color: var(--color-baize-100);
+  background: var(--color-ink-900);
+  color: var(--color-ink-100);
   font-family: var(--font-sans);
   font-stretch: 100%;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* felt: a faint woven grain over the table colour, lit from the top like a hall lamp */
+/* a faint grain over the room colour, with a cool light from the top */
 body {
   min-height: 100dvh;
-  background-color: var(--color-baize-900);
+  background-color: var(--color-ink-900);
   background-image:
-    radial-gradient(70% 55% at 62% 0%, rgb(255 236 196 / 0.075), transparent 70%),
+    radial-gradient(70% 55% at 62% 0%, rgb(110 150 255 / 0.09), transparent 70%),
     radial-gradient(140% 90% at 50% 120%, rgb(0 0 0 / 0.35), transparent 60%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.9 0 0 0 0 1 0 0 0 0 0.92 0 0 0 0.055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.85 0 0 0 0 0.9 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-attachment: fixed;
 }
 
 ::selection {
-  background: rgb(214 180 122 / 0.35);
+  background: rgb(91 140 255 / 0.35);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-brass-400);
+  outline: 2px solid var(--color-accent-400);
   outline-offset: 2px;
 }
 
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-baize-600) transparent;
+  scrollbar-color: var(--color-ink-600) transparent;
 }
 
 .tabular {
@@ -157,7 +153,8 @@ body {
 
 /* ---------- board ---------- */
 
-/* The board sits in a walnut frame; coordinates are inlaid in the rim, like a club board.
+/* The board sits in a frame with the coordinates inlaid in the rim, like a club board:
+   dark ink lacquer by default, walnut for the walnut theme.
    Sizes are in container units so the same frame works from a thumbnail to full screen. */
 .board-shell {
   container-type: inline-size;
@@ -166,20 +163,26 @@ body {
 
 .board-frame {
   --rim: 3.9cqi;
+  --coord: #8f9bbb;
   position: relative;
   padding: var(--rim);
   border-radius: 1.4cqi;
+  background: linear-gradient(160deg, #1e2843 0%, #151d33 45%, #0e1527 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(200 215 255 / 0.14),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45),
+    0 0 0 1px rgb(0 0 0 / 0.55),
+    0 2px 0 rgb(0 0 0 / 0.35),
+    0 40px 80px -30px rgb(0 0 0 / 0.85),
+    0 18px 30px -18px rgb(0 0 0 / 0.6);
+}
+
+.board-frame[data-frame="wood"] {
+  --coord: var(--color-walnut-300);
   background:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006 0.22' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0.08 0 0 0 0 0.04 0 0 0 0 0.01 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
     linear-gradient(160deg, #5c3c27 0%, #47301f 45%, #36231a 100%);
   background-size: 100% 100%, auto;
-  box-shadow:
-    inset 0 1px 0 rgb(255 225 190 / 0.18),
-    inset 0 -1px 0 rgb(0 0 0 / 0.4),
-    0 0 0 1px rgb(0 0 0 / 0.5),
-    0 2px 0 rgb(0 0 0 / 0.35),
-    0 40px 80px -30px rgb(0 0 0 / 0.85),
-    0 18px 30px -18px rgb(0 0 0 / 0.6);
 }
 
 .board-coords {
@@ -189,7 +192,7 @@ body {
   font-size: 2.15cqi;
   font-weight: 700;
   font-stretch: 85%;
-  color: var(--color-walnut-300);
+  color: var(--coord);
   text-shadow: 0 -1px 0 rgb(0 0 0 / 0.55);
   pointer-events: none;
   user-select: none;
@@ -273,7 +276,7 @@ body {
   position: absolute;
   inset: 37%;
   border-radius: 9999px;
-  background: rgb(30 18 10 / 0.28);
+  background: rgb(10 16 32 / 0.28);
 }
 
 .capture-ring::after {
@@ -281,7 +284,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  box-shadow: inset 0 0 0 5px rgb(30 18 10 / 0.28);
+  box-shadow: inset 0 0 0 5px rgb(10 16 32 / 0.28);
 }
 
 .in-check {
@@ -302,7 +305,7 @@ body {
 
 /* ---------- clock buttons ---------- */
 
-/* the brass plunger on top of a chess clock; it sinks when the clock is running */
+/* the plunger on top of a chess clock: brushed steel, lit blue on the side that is running */
 .plunger {
   position: absolute;
   top: -6px;
@@ -311,18 +314,20 @@ body {
   height: 7px;
   translate: -50% 0;
   border-radius: 4px 4px 1px 1px;
-  background: linear-gradient(180deg, var(--color-brass-300), var(--color-brass-500) 55%, var(--color-brass-700));
+  background: linear-gradient(180deg, #e6eaf2, #a9b2c6 55%, #5d6884);
   box-shadow: 0 1px 0 rgb(0 0 0 / 0.4);
-  transition: translate 160ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 160ms;
-  filter: saturate(0.55) brightness(0.8);
+  transition: translate 160ms cubic-bezier(0.2, 0.8, 0.2, 1), background 160ms;
 }
 
 .clock-tile:hover .plunger {
   translate: -50% -2px;
-  filter: none;
+}
+
+.clock-tile[aria-pressed="true"] .plunger,
+.plunger.on {
+  background: linear-gradient(180deg, var(--color-accent-300), var(--color-accent-500) 55%, var(--color-accent-700));
 }
 
 .clock-tile[aria-pressed="true"] .plunger {
   translate: -50% 4px;
-  filter: none;
 }

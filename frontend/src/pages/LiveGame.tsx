@@ -52,11 +52,11 @@ export default function LiveGame() {
   if (!user && !loading) {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
-        <Eye className="mx-auto size-10 text-baize-500" />
+        <Eye className="mx-auto size-10 text-ink-500" />
         <h1 className="mt-4 display text-4xl">Sign in to watch live</h1>
-        <p className="mt-2 text-baize-400">Live games stream over a realtime connection that needs an account. A guest account works too.</p>
+        <p className="mt-2 text-ink-400">Live games stream over a realtime connection that needs an account. A guest account works too.</p>
         <div className="mt-6 flex justify-center gap-3">
-          <Link to={`/login?next=/play/${id}`} className="rounded-xl bg-baize-100 px-5 py-2.5 font-semibold text-baize-950">
+          <Link to={`/login?next=/play/${id}`} className="rounded-xl bg-ink-100 px-5 py-2.5 font-semibold text-ink-950">
             Sign in
           </Link>
           <Link to={`/game/${id}`} className="rounded-xl bg-white/5 px-5 py-2.5 font-semibold ring-1 ring-white/10">
@@ -68,7 +68,7 @@ export default function LiveGame() {
   }
   if (!game) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-baize-400">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-ink-400">
         <Spinner className="size-8" />
         Loading game…
       </div>
@@ -169,9 +169,9 @@ function GameScreen({ game }: { game: LiveGameState }) {
             />
             {firstMoveLeft !== null && you && turn === you && (
               <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
-                <div className="animate-pop rounded-2xl bg-baize-950/85 px-5 py-3 text-center shadow-2xl ring-1 ring-brass-500/50 backdrop-blur">
-                  <div className="text-sm font-semibold text-brass-300">Your move</div>
-                  <div className="tabular text-xs text-baize-300">Game aborts in {firstMoveLeft}s</div>
+                <div className="animate-pop rounded-2xl bg-ink-950/85 px-5 py-3 text-center shadow-2xl ring-1 ring-accent-500/50 backdrop-blur">
+                  <div className="text-sm font-semibold text-accent-300">Your move</div>
+                  <div className="tabular text-xs text-ink-300">Game aborts in {firstMoveLeft}s</div>
                 </div>
               </div>
             )}
@@ -179,7 +179,7 @@ function GameScreen({ game }: { game: LiveGameState }) {
               <button
                 type="button"
                 onClick={() => setCursor(null)}
-                className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 animate-pop rounded-full bg-chalk-400 px-4 py-1.5 text-xs font-bold text-baize-950 shadow-xl"
+                className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 animate-pop rounded-full bg-chalk-400 px-4 py-1.5 text-xs font-bold text-ink-950 shadow-xl"
               >
                 Back to live position
               </button>
@@ -194,7 +194,7 @@ function GameScreen({ game }: { game: LiveGameState }) {
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <span className="digits text-[17px]">{game.tc.replace('+', ' + ')}</span> {tcCategory(game.tc)}
               </div>
-              <div className="text-xs text-baize-400">
+              <div className="text-xs text-ink-400">
                 {you ? 'Rated game' : 'Watching'}
                 {game.spectators > 0 && `, ${game.spectators} ${game.spectators === 1 ? 'spectator' : 'spectators'}`}
               </div>
@@ -216,7 +216,7 @@ function GameScreen({ game }: { game: LiveGameState }) {
           )}
 
           {active && game.drawOfferFrom && you && game.drawOfferFrom !== you && (
-            <div className="flex animate-pop items-center justify-between gap-2 bg-chalk-400 px-4 py-3 text-baize-950">
+            <div className="flex animate-pop items-center justify-between gap-2 bg-chalk-400 px-4 py-3 text-ink-950">
               <span className="flex items-center gap-2 text-sm font-semibold">
                 <Handshake className="size-4" /> Your opponent offers a draw
               </span>
@@ -237,7 +237,7 @@ function GameScreen({ game }: { game: LiveGameState }) {
             ) : game.result ? (
               <ResultActions game={game} onShow={() => setShowResult(true)} />
             ) : (
-              <div className="py-1 text-center text-xs text-baize-500">Watching live</div>
+              <div className="py-1 text-center text-xs text-ink-500">Watching live</div>
             )}
           </div>
         </Card>
@@ -270,7 +270,7 @@ function IconBtn({ label, onClick, children, active }: { label: string; onClick:
       title={label}
       aria-label={label}
       onClick={onClick}
-      className={`flex size-8 items-center justify-center rounded-lg transition ${active ? 'bg-chalk-400/15 text-chalk-300' : 'text-baize-400 hover:bg-white/5 hover:text-baize-100'}`}
+      className={`flex size-8 items-center justify-center rounded-lg transition ${active ? 'bg-chalk-400/15 text-chalk-300' : 'text-ink-400 hover:bg-white/5 hover:text-ink-100'}`}
     >
       {children}
     </button>
@@ -336,7 +336,7 @@ function ResultActions({ game, onShow }: { game: LiveGameState; onShow: () => vo
   return (
     <div className="flex flex-col gap-2">
       {rm.theirOffer && (
-        <div className="flex animate-pop items-center justify-between rounded-xl bg-chalk-400 px-3 py-2 text-sm text-baize-950">
+        <div className="flex animate-pop items-center justify-between rounded-xl bg-chalk-400 px-3 py-2 text-sm text-ink-950">
           <span className="font-semibold">Rematch?</span>
           <div className="flex gap-1.5">
             <Button size="sm" variant="primary" onClick={rm.offer}>
@@ -383,13 +383,13 @@ function ResultDialog({ game, onAnalyse }: { game: LiveGameState; onAnalyse: () 
   return (
     <div className="text-center">
 
-      <h2 className={`display text-6xl ${won ? 'text-win' : lost ? 'text-loss' : 'text-baize-100'}`}>{resultHeadline(result, you)}</h2>
-      <p className="mt-1 text-baize-400">{resultDetail(result) || ' '}</p>
+      <h2 className={`display text-6xl ${won ? 'text-win' : lost ? 'text-loss' : 'text-ink-100'}`}>{resultHeadline(result, you)}</h2>
+      <p className="mt-1 text-ink-400">{resultDetail(result) || ' '}</p>
 
       {!aborted && (
         <div className="mt-6 grid grid-cols-2 gap-3">
           {(['white', 'black'] as const).map((c) => (
-            <div key={c} className={`rounded-2xl bg-baize-800 p-3 ring-1 ${c === you ? 'ring-chalk-400/40' : 'ring-white/5'}`}>
+            <div key={c} className={`rounded-2xl bg-ink-800 p-3 ring-1 ${c === you ? 'ring-chalk-400/40' : 'ring-white/5'}`}>
               <div className="truncate text-sm font-semibold">{game[c].username}</div>
               <div className="digits mt-1 text-[2.4rem] leading-none">
                 {game[c].rating + (c === 'white' ? result.whiteDelta : result.blackDelta)}
@@ -436,11 +436,11 @@ function Chat({ game }: { game: LiveGameState }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="scroll-thin min-h-[120px] flex-1 space-y-2 overflow-y-auto p-4 text-sm">
-        {game.chat.length === 0 && <div className="py-6 text-center text-baize-500">Say hi — be kind.</div>}
+        {game.chat.length === 0 && <div className="py-6 text-center text-ink-500">Say hi — be kind.</div>}
         {game.chat.map((l, i) => (
           <div key={i} className="break-words">
-            <span className={`font-semibold ${l.from === game.white.username ? 'text-baize-100' : 'text-baize-400'}`}>{l.from}</span>{' '}
-            <span className="text-baize-300">{l.text}</span>
+            <span className={`font-semibold ${l.from === game.white.username ? 'text-ink-100' : 'text-ink-400'}`}>{l.from}</span>{' '}
+            <span className="text-ink-300">{l.text}</span>
           </div>
         ))}
         <div ref={endRef} />
@@ -462,9 +462,9 @@ function Chat({ game }: { game: LiveGameState }) {
             onChange={(e) => setText(e.target.value)}
             placeholder="Message"
             aria-label="Chat message"
-            className="h-9 min-w-0 flex-1 rounded-lg bg-baize-950/60 px-3 text-sm ring-1 ring-white/8 focus:outline-none focus:ring-chalk-400/50"
+            className="h-9 min-w-0 flex-1 rounded-lg bg-ink-950/60 px-3 text-sm ring-1 ring-white/8 focus:outline-none focus:ring-chalk-400/50"
           />
-          <button type="submit" aria-label="Send" className="flex size-9 items-center justify-center rounded-lg bg-chalk-400 text-baize-950 transition hover:bg-chalk-300">
+          <button type="submit" aria-label="Send" className="flex size-9 items-center justify-center rounded-lg bg-chalk-400 text-ink-950 transition hover:bg-chalk-300">
             <Send className="size-4" />
           </button>
         </form>

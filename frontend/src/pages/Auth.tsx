@@ -44,11 +44,11 @@ export default function Auth({ mode }: { mode: 'login' | 'signup' }) {
       <div className="w-full max-w-sm">
         <div className="mb-8">
           <h1 className="display text-6xl">{isSignup ? 'Join the board' : 'Welcome back'}</h1>
-          <p className="mt-3 text-[15px] text-baize-400">{isSignup ? 'Create an account to keep your rating and history.' : 'Sign in to continue playing.'}</p>
+          <p className="mt-3 text-[15px] text-ink-400">{isSignup ? 'Create an account to keep your rating and history.' : 'Sign in to continue playing.'}</p>
         </div>
         <Card className="p-6">
           {user?.isGuest && isSignup && (
-            <div className="mb-4 rounded-xl bg-baize-800 p-3 text-[13px] text-baize-300">
+            <div className="mb-4 rounded-xl bg-ink-800 p-3 text-[13px] text-ink-300">
               You're playing as <b>{user.username}</b>. A new account starts fresh at 1200.
             </div>
           )}
@@ -64,16 +64,16 @@ export default function Auth({ mode }: { mode: 'login' | 'signup' }) {
               {isSignup ? 'Create account' : 'Sign in'}
             </Button>
           </form>
-          <div className="my-5 flex items-center gap-3 text-xs text-baize-500">
+          <div className="my-5 flex items-center gap-3 text-xs text-ink-500">
             <div className="h-px flex-1 bg-white/8" /> or <div className="h-px flex-1 bg-white/8" />
           </div>
           <Button className="w-full" loading={busy === 'guest'} onClick={() => run('guest', playAsGuest)}>
             <UserRound className="size-4" /> Continue as guest
           </Button>
         </Card>
-        <p className="mt-6 text-sm text-baize-400">
+        <p className="mt-6 text-sm text-ink-400">
           {isSignup ? 'Already have an account?' : 'New to Gambit?'}{' '}
-          <Link to={`${isSignup ? '/login' : '/signup'}${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`} className="font-semibold text-baize-100 underline underline-offset-4">
+          <Link to={`${isSignup ? '/login' : '/signup'}${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`} className="font-semibold text-ink-100 underline underline-offset-4">
             {isSignup ? 'Sign in' : 'Create an account'}
           </Link>
         </p>
@@ -85,14 +85,14 @@ export default function Auth({ mode }: { mode: 'login' | 'signup' }) {
 function Field({ label, value, onChange, type = 'text', autoComplete, autoFocus }: { label: string; value: string; onChange: (v: string) => void; type?: string; autoComplete?: string; autoFocus?: boolean }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-baize-300">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-ink-300">{label}</span>
       <input
         type={type}
         value={value}
         autoComplete={autoComplete}
         autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
-        className="felt-sunk h-12 w-full rounded-xl px-4 text-[16px] transition placeholder:text-baize-500 focus:outline-none focus:ring-2 focus:ring-brass-400/70"
+        className="felt-sunk h-12 w-full rounded-xl px-4 text-[16px] transition placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-accent-400/70"
       />
     </label>
   )

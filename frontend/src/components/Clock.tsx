@@ -54,15 +54,15 @@ export function Clock({
   const face = ticking
     ? low
       ? 'bg-flag text-white shadow-[0_0_0_1px_rgb(0_0_0/0.2),0_10px_30px_-10px_rgb(224_83_61/0.8)]'
-      : 'bg-chalk-400 text-baize-950 shadow-[inset_0_-3px_0_rgb(0_0_0/0.1),0_10px_30px_-14px_rgb(242_238_227/0.5)]'
+      : 'bg-chalk-400 text-ink-950 shadow-[inset_0_-3px_0_rgb(0_0_0/0.1),0_10px_30px_-14px_rgb(242_238_227/0.5)]'
     : low && !finished
       ? 'felt-sunk text-loss'
-      : 'felt-sunk text-baize-300'
+      : 'felt-sunk text-ink-300'
 
   return (
     <div className="relative">
       {/* the running side's plunger stands up; the waiting side's is pressed down */}
-      {!finished && <span aria-hidden className="plunger" style={ticking ? { translate: '-50% -2px', filter: 'none' } : { translate: '-50% 3px' }} />}
+      {!finished && <span aria-hidden className={`plunger ${ticking ? 'on' : ''}`} style={{ translate: ticking ? '-50% -2px' : '-50% 3px' }} />}
       <div
         className={`digits relative flex items-center justify-end overflow-hidden transition-colors duration-200 ${
           size === 'lg' ? 'h-16 min-w-[10rem] rounded-2xl px-5 text-[2.75rem]' : 'h-14 min-w-[8.5rem] rounded-[14px] px-4 text-[2.15rem]'

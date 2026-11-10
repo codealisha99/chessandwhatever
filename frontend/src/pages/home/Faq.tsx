@@ -37,11 +37,11 @@ export function Faq() {
       <div className="divide-y divide-white/[0.07] border-y border-white/[0.07]">
         {FAQ.map(([q, a]) => (
           <details key={q} className="group">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-[17px] font-semibold text-baize-100 transition-colors hover:text-chalk-200 [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-[17px] font-semibold text-ink-100 transition-colors hover:text-chalk-200 [&::-webkit-details-marker]:hidden">
               {q}
-              <Plus className="size-5 shrink-0 text-baize-400 transition-transform duration-200 group-open:rotate-45" aria-hidden />
+              <Plus className="size-5 shrink-0 text-ink-400 transition-transform duration-200 group-open:rotate-45" aria-hidden />
             </summary>
-            <p className="max-w-2xl pb-6 text-[15px] leading-relaxed text-baize-300">{a}</p>
+            <p className="max-w-2xl pb-6 text-[15px] leading-relaxed text-ink-300">{a}</p>
           </details>
         ))}
       </div>

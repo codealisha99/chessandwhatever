@@ -15,14 +15,14 @@ export function EngineLadder() {
         <h2 id="ladder-heading" className="display text-[clamp(2.8rem,6vw,4.5rem)]">
           Eight opponents, one engine.
         </h2>
-        <p className="text-[16px] leading-relaxed text-baize-300">
+        <p className="text-[16px] leading-relaxed text-ink-300">
           Stockfish 19 runs in your browser at eight strengths, unrated. Take moves back, ask for a hint, then send the game to the analysis board.
         </p>
       </div>
 
       {/* wide screens: the levels placed on a rating scale */}
       <div className="relative mt-16 hidden h-36 md:block">
-        <div className="absolute inset-x-0 top-[46px] h-px bg-gradient-to-r from-baize-600 via-baize-500 to-brass-500" aria-hidden />
+        <div className="absolute inset-x-0 top-[46px] h-px bg-gradient-to-r from-ink-600 via-ink-500 to-accent-500" aria-hidden />
         <ol className="contents">
           {BOT_LEVELS.map((l) => {
             const on = l.level === active
@@ -35,12 +35,12 @@ export function EngineLadder() {
                   aria-label={`Practice against ${l.name}, level ${l.level}, ${l.elo}`}
                   className="group flex flex-col items-center gap-2.5 rounded-xl px-2 py-1 focus-visible:outline-offset-4"
                 >
-                  <span className={`whitespace-nowrap text-[14px] font-semibold transition-colors ${on ? 'text-baize-100' : 'text-baize-400 group-hover:text-baize-200'}`}>{l.name}</span>
+                  <span className={`whitespace-nowrap text-[14px] font-semibold transition-colors ${on ? 'text-ink-100' : 'text-ink-400 group-hover:text-ink-200'}`}>{l.name}</span>
                   <span
-                    className={`size-3.5 rounded-full ring-4 ring-baize-900 transition-transform duration-200 ${on ? 'scale-125 bg-brass-400' : 'bg-baize-400 group-hover:bg-baize-200'}`}
+                    className={`size-3.5 rounded-full ring-4 ring-ink-900 transition-transform duration-200 ${on ? 'scale-125 bg-accent-400' : 'bg-ink-400 group-hover:bg-ink-200'}`}
                     aria-hidden
                   />
-                  <span className={`digits mt-5 text-[13px] ${on ? 'text-brass-300' : 'text-baize-500'}`}>{l.elo}</span>
+                  <span className={`digits mt-5 text-[13px] ${on ? 'text-accent-300' : 'text-ink-500'}`}>{l.elo}</span>
                 </Link>
               </li>
             )
@@ -48,10 +48,10 @@ export function EngineLadder() {
         </ol>
       </div>
       <div className="mt-2 hidden items-baseline justify-between gap-6 border-t border-white/[0.06] pt-5 md:flex" aria-live="polite">
-        <p className="annot text-[18px] text-baize-200">
+        <p className="annot text-[18px] text-ink-200">
           {lvl.name}: {lvl.note}
         </p>
-        <Link to={`/computer?level=${lvl.level}`} className="shrink-0 text-sm font-semibold text-baize-100 underline decoration-baize-600 underline-offset-4 hover:decoration-baize-100">
+        <Link to={`/computer?level=${lvl.level}`} className="shrink-0 text-sm font-semibold text-ink-100 underline decoration-ink-600 underline-offset-4 hover:decoration-ink-100">
           Play {lvl.name}
         </Link>
       </div>
@@ -63,9 +63,9 @@ export function EngineLadder() {
             <Link to={`/computer?level=${l.level}`} className="flex items-baseline justify-between gap-4 py-3.5">
               <span>
                 <span className="block text-[15px] font-semibold">{l.name}</span>
-                <span className="annot block text-[15px] text-baize-400">{l.note}</span>
+                <span className="annot block text-[15px] text-ink-400">{l.note}</span>
               </span>
-              <span className="digits shrink-0 text-[15px] text-baize-400">{l.elo}</span>
+              <span className="digits shrink-0 text-[15px] text-ink-400">{l.elo}</span>
             </Link>
           </li>
         ))}

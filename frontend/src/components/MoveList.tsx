@@ -43,7 +43,7 @@ export function MoveList({ sans, cursor, onJump, footer }: Props) {
         data-current={ply === cursor}
         onClick={() => onJump(ply)}
         className={`rounded-md px-2.5 py-1.5 text-left text-[15px] font-medium transition-colors ${
-          ply === cursor ? 'bg-chalk-400 text-baize-950' : 'text-baize-200 hover:bg-white/5'
+          ply === cursor ? 'bg-chalk-400 text-ink-950' : 'text-ink-200 hover:bg-white/5'
         }`}
       >
         {sans[ply]}
@@ -63,19 +63,19 @@ export function MoveList({ sans, cursor, onJump, footer }: Props) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div ref={listRef} className="scroll-thin min-h-[120px] flex-1 overflow-y-auto px-3 py-2">
         {sans.length === 0 ? (
-          <div className="annot px-2 py-8 text-[16px] text-baize-400">White to play. The moves will be written down here.</div>
+          <div className="annot px-2 py-8 text-[16px] text-ink-400">White to play. The moves will be written down here.</div>
         ) : (
           <div>
             {rows.map((i) => (
               <div key={i} className="grid grid-cols-[2.75rem_1fr_1fr] items-center border-b border-white/[0.04] py-0.5">
-                <span className="digits pl-1 text-[15px] text-baize-500">{i / 2 + 1}</span>
+                <span className="digits pl-1 text-[15px] text-ink-500">{i / 2 + 1}</span>
                 {cell(i)}
                 {cell(i + 1)}
               </div>
             ))}
           </div>
         )}
-        {footer && <div className="annot mt-4 border-t border-white/[0.06] px-2 pt-3 text-[16px] text-baize-200">{footer}</div>}
+        {footer && <div className="annot mt-4 border-t border-white/[0.06] px-2 pt-3 text-[16px] text-ink-200">{footer}</div>}
       </div>
       <div className="grid grid-cols-4 gap-1 border-t border-white/5 p-2">
         {nav.map(({ icon: Icon, to, label }) => (
@@ -85,7 +85,7 @@ export function MoveList({ sans, cursor, onJump, footer }: Props) {
             aria-label={label}
             disabled={sans.length === 0}
             onClick={() => onJump(to)}
-            className="flex h-9 items-center justify-center rounded-lg text-baize-400 transition-colors hover:bg-white/5 hover:text-baize-100 disabled:opacity-30"
+            className="flex h-9 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-white/5 hover:text-ink-100 disabled:opacity-30"
           >
             <Icon className="size-5" />
           </button>
