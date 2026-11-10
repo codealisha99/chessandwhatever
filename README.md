@@ -17,12 +17,13 @@ frontend/   React 19 + Vite + Tailwind v4 SPA
 | Redis | Railway Redis, private network |
 
 ```
-browser ── https ──▶ Vercel (static SPA, /api/* rewritten to Railway)
-   └────── wss ────▶ Railway gambit-server ──▶ Railway Redis (pub/sub, queues, live games)
+browser ── https ──▶ Vercel (static SPA only)
+   ├────── https ──▶ Railway gambit-server /api ─┐
+   └────── wss ────▶ Railway gambit-server /ws ──┴─▶ Railway Redis (pub/sub, queues, live games)
                                            └─▶ Neon Postgres (accounts, finished games)
 ```
 
-The browser opens its WebSocket straight to Railway (`VITE_WS_URL`), because Vercel can't proxy WebSockets.
+The browser talks to Railway directly for both the API (`VITE_API_URL`) and the WebSocket (`VITE_WS_URL`). Going through a Vercel rewrite would hide the client IP behind Vercel's rotating egress addresses and defeat the per-IP auth rate limit, so the server allows the frontend's origin via `CORS_ORIGINS` instead.
 
 ### Redeploy
 
@@ -31,8 +32,8 @@ cd backend1 && railway up --service gambit-server     # server (Dockerfile + rai
 cd frontend && vercel deploy --prod                   # frontend (vercel.json)
 ```
 
-Railway variables: `DATABASE_URL` (Neon `main`, pooled), `REDIS_URL=${{Redis.REDIS_URL}}`, `AUTH_SECRET`, `NODE_ENV=production`.
-Vercel variable: `VITE_WS_URL=wss://gambit-server-production.up.railway.app/ws`.
+Railway variables: `DATABASE_URL` (Neon `main`, pooled), `REDIS_URL=${{Redis.REDIS_URL}}`, `AUTH_SECRET`, `NODE_ENV=production`, `CORS_ORIGINS=https://gambit-mocha.vercel.app`.
+Vercel variables: `VITE_API_URL=https://gambit-server-production.up.railway.app`, `VITE_WS_URL=wss://gambit-server-production.up.railway.app/ws`. Preview deployments use other origins, so their API calls are refused unless added to `CORS_ORIGINS`.
 To scale the server, raise the replica count in Railway. Games are shared through Redis.
 
 ## Run it locally
@@ -73,6 +74,7 @@ AUTH_SECRET=$(openssl rand -hex 32) npm start   # http://localhost:8080
 | `REDIS_PREFIX` | `gambit:` | key/channel namespace (lets deployments or tests share a Redis) |
 | `AUTH_SECRET` | dev: auto-generated in `data/` | **required** when `NODE_ENV=production` |
 | `DATABASE_URL` | *(required)* | Postgres / Neon connection string |
+| `CORS_ORIGINS` | *(empty: same-origin only)* | comma-separated browser origins allowed to call the API |
 | `TRUST_PROXY` | on in production | take the client IP from `X-Forwarded-For` (Vercel/Railway) |
 | `STATIC_DIR` | `frontend/dist` | built SPA to serve |
 | `BACKEND_URL` | `http://localhost:8080` | (frontend dev) proxy target |
@@ -152,6 +154,7 @@ Every inbound message is validated (`backend1/src/protocol.ts`) and rate-limited
 
 ## Known limits
 
+- A finished game is saved with retries, but if the owning instance dies during those retries the record is lost.
 - A command that reaches an owner in the instant before it crashes can be lost. The client notices the missing confirmation after 4s and resyncs the game.
 - Matchmaking is FIFO per time control, not rating-windowed.
 - No premoves.
