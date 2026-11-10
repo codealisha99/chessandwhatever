@@ -4,6 +4,7 @@ import { config } from "./config.ts";
 import { repo } from "./db.ts";
 import { Game, viewOf, type GameSnapshot, type PlayerInfo } from "./Game.ts";
 import { log } from "./logger.ts";
+import { retry } from "./retry.ts";
 import { parseClientMessage, parseTimeControl, TIME_CONTROLS, type ClientMessage, type Color } from "./protocol.ts";
 import { bus, CH, games, presence, queue, rooms } from "./redis.ts";
 
@@ -296,7 +297,9 @@ export class GameManager {
   private onFinished(game: Game): void {
     log.info("game finished", { id: game.id, ...game.result });
     if (game.record) {
-      repo.saveFinishedGame(game.record).catch((err) => log.error(`failed to save game ${game.id}`, err));
+      // the save is idempotent (insert-if-absent, ratings applied in the same transaction), so retrying is safe
+      const record = game.record;
+      retry(`saving game ${game.id}`, () => repo.saveFinishedGame(record)).catch((err) => log.error(`gave up saving game ${game.id}`, err));
     }
     this.scheduleEviction(game);
   }

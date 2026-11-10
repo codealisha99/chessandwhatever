@@ -1,6 +1,7 @@
 import pg from "pg";
 import { config } from "./config.ts";
 import { log } from "./logger.ts";
+import { retry } from "./retry.ts";
 
 export interface User {
   id: string;
@@ -41,7 +42,7 @@ export interface GameRecord {
 }
 
 // Neon (or any Postgres). One pool per instance; every instance shares the same database.
-const pool = new pg.Pool({
+export const pool = new pg.Pool({
   connectionString: config.databaseUrl,
   max: 10,
   idleTimeoutMillis: 30_000,
@@ -85,20 +86,9 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS games_black ON games (black_id, ended_at DESC);
 `;
 
-const MIGRATE_ATTEMPTS = 6;
-
 /** Idempotent schema setup, retried while the database wakes up or the network settles. */
-export async function migrate(): Promise<void> {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await migrateOnce();
-    } catch (err) {
-      if (attempt >= MIGRATE_ATTEMPTS) throw err;
-      const wait = Math.min(1000 * 2 ** attempt, 15_000);
-      log.warn(`database not ready (${(err as Error).message}), retrying in ${wait / 1000}s`, { attempt });
-      await new Promise((r) => setTimeout(r, wait));
-    }
-  }
+export function migrate(): Promise<void> {
+  return retry("database migration", migrateOnce);
 }
 
 /**
