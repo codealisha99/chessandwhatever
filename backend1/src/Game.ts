@@ -1,9 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { Chess } from "chess.js";
 import { config } from "./config.ts";
-import { repo, type StoredMove } from "./db.ts";
+import type { GameRecord, StoredMove } from "./db.ts";
 import { eloDelta } from "./elo.ts";
-import { log } from "./logger.ts";
 import type { Color, MoveInput, TimeControl } from "./protocol.ts";
 
 export interface PlayerInfo {
@@ -31,6 +30,29 @@ interface ChatLine {
   ts: number;
 }
 
+/**
+ * Everything needed to rebuild a game on another server instance.
+ * Times are absolute epoch ms so a takeover resumes the clocks exactly.
+ */
+export interface GameSnapshot {
+  id: string;
+  white: PlayerInfo;
+  black: PlayerInfo;
+  tc: TimeControl;
+  moves: PlayedMove[];
+  fen: string;
+  clocks: Record<Color, number>;
+  turnStartedAt: number;
+  startedAt: number;
+  status: "active" | "finished";
+  result: GameResult | null;
+  drawOfferFrom: Color | null;
+  rematchFrom: Color | null;
+  chat: ChatLine[];
+  connected: Record<Color, boolean>;
+  abandonAt: Record<Color, number | null>;
+}
+
 /** to: undefined = players + spectators, otherwise a single userId. */
 export type Emit = (msg: object, to?: string) => void;
 
@@ -44,140 +66,188 @@ export function cannotMate(chess: Chess, color: Color): boolean {
   return pieces.length === 0 || (pieces.length === 1 && (pieces[0]!.type === "n" || pieces[0]!.type === "b"));
 }
 
-export class Game {
-  readonly id = randomBytes(6).toString("base64url");
-  readonly chess = new Chess();
-  readonly moves: PlayedMove[] = [];
-  readonly spectators = new Set<string>();
-  readonly startedAt = Date.now();
-  status: "active" | "finished" = "active";
-  result: GameResult | null = null;
-  drawOfferFrom: Color | null = null;
-  rematchFrom: Color | null = null;
-  readonly connected = { white: true, black: true };
+// ---------- pure snapshot readers (usable on any instance, no Game object needed) ----------
 
-  private clocks: { white: number; black: number };
-  private turnStartedAt = Date.now();
+const turnOf = (s: GameSnapshot): Color => (s.moves.length % 2 === 0 ? "white" : "black");
+/** Clocks only run once both sides have made their first move. */
+const clockRunning = (s: GameSnapshot) => s.status === "active" && s.moves.length >= 2;
+
+export function remainingOf(s: GameSnapshot, c: Color, now = Date.now()): number {
+  const spent = clockRunning(s) && turnOf(s) === c ? now - s.turnStartedAt : 0;
+  return Math.max(0, s.clocks[c] - spent);
+}
+
+export function clocksOf(s: GameSnapshot, now = Date.now()) {
+  return {
+    white: remainingOf(s, "white", now),
+    black: remainingOf(s, "black", now),
+    ticking: clockRunning(s) ? turnOf(s) : null,
+    firstMoveMs:
+      s.status === "active" && s.moves.length < 2
+        ? Math.max(0, config.firstMoveTimeoutMs - (now - s.turnStartedAt))
+        : null,
+  };
+}
+
+/** The client-facing game view. `forUser` decides the `you` field. */
+export function viewOf(s: GameSnapshot, forUser: string | null, spectators: number, now = Date.now()) {
+  const pub = (p: PlayerInfo) => ({ id: p.id, username: p.username, rating: p.rating });
+  const left = (at: number | null) => (at === null ? null : Math.max(0, at - now));
+  return {
+    id: s.id,
+    tc: s.tc.id,
+    white: pub(s.white),
+    black: pub(s.black),
+    you: forUser === s.white.id ? "white" : forUser === s.black.id ? "black" : null,
+    moves: s.moves.map(({ san, from, to, promotion }) => ({ san, from, to, promotion })),
+    status: s.status,
+    clocks: clocksOf(s, now),
+    result: s.result,
+    drawOfferFrom: s.drawOfferFrom,
+    rematchFrom: s.rematchFrom,
+    chat: s.chat,
+    connected: s.connected,
+    abandonMs: { white: left(s.abandonAt.white), black: left(s.abandonAt.black) },
+    spectators,
+  };
+}
+
+// ---------- the live game, owned by exactly one server instance ----------
+
+export class Game {
+  readonly chess = new Chess();
+  /** set when a rated game finishes; what gets written to the database */
+  record: GameRecord | null = null;
+  private s: GameSnapshot;
   private turnTimer: NodeJS.Timeout | null = null;
-  private abandonTimers: Partial<Record<Color, { timer: NodeJS.Timeout; at: number }>> = {};
-  private chat: ChatLine[] = [];
-  private readonly white: PlayerInfo;
-  private readonly black: PlayerInfo;
-  private readonly tc: TimeControl;
+  private abandonTimers: Partial<Record<Color, NodeJS.Timeout>> = {};
   private readonly emit: Emit;
   private readonly onFinish: (g: Game) => void;
 
   constructor(
-    white: PlayerInfo,
-    black: PlayerInfo,
-    tc: TimeControl,
+    init: { white: PlayerInfo; black: PlayerInfo; tc: TimeControl } | GameSnapshot,
     emit: Emit,
     onFinish: (g: Game) => void,
   ) {
-    this.white = white;
-    this.black = black;
-    this.tc = tc;
     this.emit = emit;
     this.onFinish = onFinish;
-    this.clocks = { white: tc.initialMs, black: tc.initialMs };
+    const now = Date.now();
+    this.s =
+      "id" in init
+        ? structuredClone(init)
+        : {
+            id: randomBytes(6).toString("base64url"),
+            white: init.white,
+            black: init.black,
+            tc: init.tc,
+            moves: [],
+            fen: this.chess.fen(),
+            clocks: { white: init.tc.initialMs, black: init.tc.initialMs },
+            turnStartedAt: now,
+            startedAt: now,
+            status: "active",
+            result: null,
+            drawOfferFrom: null,
+            rematchFrom: null,
+            chat: [],
+            connected: { white: true, black: true },
+            abandonAt: { white: null, black: null },
+          };
+    const { white, black, tc } = this.s;
     this.chess.setHeader("Event", `Rated ${tc.id} game`);
     this.chess.setHeader("Site", "Gambit");
-    this.chess.setHeader("Date", new Date().toISOString().slice(0, 10).replaceAll("-", "."));
+    this.chess.setHeader("Date", new Date(this.s.startedAt).toISOString().slice(0, 10).replaceAll("-", "."));
     this.chess.setHeader("White", white.username);
     this.chess.setHeader("Black", black.username);
     this.chess.setHeader("WhiteElo", String(white.rating));
     this.chess.setHeader("BlackElo", String(black.rating));
     this.chess.setHeader("TimeControl", `${tc.initialMs / 1000}+${tc.incrementMs / 1000}`);
+    for (const m of this.s.moves) this.chess.move({ from: m.from, to: m.to, promotion: m.promotion });
   }
 
+  get id(): string {
+    return this.s.id;
+  }
   get whiteId(): string {
-    return this.white.id;
+    return this.s.white.id;
   }
   get blackId(): string {
-    return this.black.id;
+    return this.s.black.id;
   }
   get tcId(): string {
-    return this.tc.id;
+    return this.s.tc.id;
+  }
+  get status() {
+    return this.s.status;
+  }
+  get result() {
+    return this.s.result;
+  }
+  get moves(): readonly PlayedMove[] {
+    return this.s.moves;
+  }
+  get drawOfferFrom() {
+    return this.s.drawOfferFrom;
+  }
+  get rematchFrom() {
+    return this.s.rematchFrom;
+  }
+  set rematchFrom(c: Color | null) {
+    this.s.rematchFrom = c;
+  }
+  get connected(): Readonly<Record<Color, boolean>> {
+    return this.s.connected;
+  }
+
+  snapshot(): GameSnapshot {
+    return structuredClone(this.s);
   }
 
   colorOf(userId: string): Color | null {
-    return userId === this.white.id ? "white" : userId === this.black.id ? "black" : null;
-  }
-
-  private player(c: Color): PlayerInfo {
-    return c === "white" ? this.white : this.black;
+    return userId === this.s.white.id ? "white" : userId === this.s.black.id ? "black" : null;
   }
 
   get turn(): Color {
-    return this.chess.turn() === "w" ? "white" : "black";
-  }
-
-  /** Clocks only run once both sides have made their first move. */
-  private get clockRunning(): boolean {
-    return this.status === "active" && this.moves.length >= 2;
+    return turnOf(this.s);
   }
 
   remaining(c: Color, now = Date.now()): number {
-    const spent = this.clockRunning && this.turn === c ? now - this.turnStartedAt : 0;
-    return Math.max(0, this.clocks[c] - spent);
+    return remainingOf(this.s, c, now);
   }
 
-  clockSnapshot(now = Date.now()) {
-    return {
-      white: this.remaining("white", now),
-      black: this.remaining("black", now),
-      ticking: this.clockRunning ? this.turn : null,
-      firstMoveMs:
-        this.status === "active" && this.moves.length < 2
-          ? Math.max(0, config.firstMoveTimeoutMs - (now - this.turnStartedAt))
-          : null,
-    };
-  }
-
-  view(forUser: string | null) {
-    const now = Date.now();
-    const abandon = (c: Color) => {
-      const t = this.abandonTimers[c];
-      return t ? Math.max(0, t.at - now) : null;
-    };
-    const pub = (p: PlayerInfo) => ({ id: p.id, username: p.username, rating: p.rating });
-    return {
-      id: this.id,
-      tc: this.tc.id,
-      white: pub(this.white),
-      black: pub(this.black),
-      you: forUser ? this.colorOf(forUser) : null,
-      moves: this.moves.map(({ san, from, to, promotion }) => ({ san, from, to, promotion })),
-      status: this.status,
-      clocks: this.clockSnapshot(now),
-      result: this.result,
-      drawOfferFrom: this.drawOfferFrom,
-      rematchFrom: this.rematchFrom,
-      chat: this.chat,
-      connected: this.connected,
-      abandonMs: { white: abandon("white"), black: abandon("black") },
-      spectators: this.spectators.size,
-    };
+  view(forUser: string | null, spectators = 0) {
+    return viewOf(this.s, forUser, spectators);
   }
 
   start(): void {
-    this.turnStartedAt = Date.now();
+    this.s.turnStartedAt = Date.now();
     this.scheduleTurnTimer();
-    this.emit({ type: "game_state", game: this.view(this.white.id) }, this.white.id);
-    this.emit({ type: "game_state", game: this.view(this.black.id) }, this.black.id);
+    this.emit({ type: "game_state", game: this.view(this.whiteId) }, this.whiteId);
+    this.emit({ type: "game_state", game: this.view(this.blackId) }, this.blackId);
+  }
+
+  /** Re-arm timers after restoring from a snapshot on a new owner. Fires immediately if a deadline already passed. */
+  resume(): void {
+    if (this.s.status !== "active") return;
+    const now = Date.now();
+    for (const c of ["white", "black"] as const) {
+      const at = this.s.abandonAt[c];
+      if (at !== null) this.armAbandon(c, Math.max(0, at - now));
+    }
+    if (this.s.status === "active") this.scheduleTurnTimer();
   }
 
   /** Returns an error message, or null on success. */
   move(userId: string, input: MoveInput): string | null {
-    if (this.status !== "active") return "Game is over";
+    if (this.s.status !== "active") return "Game is over";
     const color = this.colorOf(userId);
     if (!color) return "You are not playing in this game";
     if (color !== this.turn) return "Not your turn";
 
     const now = Date.now();
-    const clockWasRunning = this.clockRunning;
-    if (clockWasRunning && this.remaining(color, now) <= 0) {
-      this.clocks[color] = 0;
+    const wasRunning = clockRunning(this.s);
+    if (wasRunning && this.remaining(color, now) <= 0) {
+      this.s.clocks[color] = 0;
       this.flag(color);
       return "Out of time";
     }
@@ -188,24 +258,25 @@ export class Game {
     } catch {
       return "Illegal move";
     }
-    if (clockWasRunning) {
-      this.clocks[color] = this.clocks[color] - (now - this.turnStartedAt) + this.tc.incrementMs;
+    if (wasRunning) {
+      this.s.clocks[color] = this.s.clocks[color] - (now - this.s.turnStartedAt) + this.s.tc.incrementMs;
     }
 
     const promotion = played.promotion as MoveInput["promotion"];
-    const record: PlayedMove = { san: played.san, from: played.from, to: played.to, clock: this.clocks[color] };
+    const record: PlayedMove = { san: played.san, from: played.from, to: played.to, clock: this.s.clocks[color] };
     if (promotion) record.promotion = promotion;
-    this.moves.push(record);
-    this.turnStartedAt = now;
-    if (this.drawOfferFrom && this.drawOfferFrom !== color) this.drawOfferFrom = null;
+    this.s.moves.push(record);
+    this.s.fen = this.chess.fen();
+    this.s.turnStartedAt = now;
+    if (this.s.drawOfferFrom && this.s.drawOfferFrom !== color) this.s.drawOfferFrom = null;
 
     this.emit({
       type: "move",
       gameId: this.id,
       move: { san: record.san, from: record.from, to: record.to, promotion: record.promotion },
-      ply: this.moves.length,
-      clocks: this.clockSnapshot(now),
-      drawOfferFrom: this.drawOfferFrom,
+      ply: this.s.moves.length,
+      clocks: clocksOf(this.s, now),
+      drawOfferFrom: this.s.drawOfferFrom,
     });
 
     if (this.chess.isCheckmate()) this.finish(color, "checkmate");
@@ -219,10 +290,11 @@ export class Game {
 
   private scheduleTurnTimer(): void {
     if (this.turnTimer) clearTimeout(this.turnTimer);
-    if (this.status !== "active") return;
+    if (this.s.status !== "active") return;
     const side = this.turn;
-    if (this.moves.length < 2) {
-      this.turnTimer = setTimeout(() => this.finish(null, "aborted"), config.firstMoveTimeoutMs);
+    if (this.s.moves.length < 2) {
+      const left = config.firstMoveTimeoutMs - (Date.now() - this.s.turnStartedAt);
+      this.turnTimer = setTimeout(() => this.finish(null, "aborted"), Math.max(0, left));
     } else {
       // +5ms so remaining() is already <= 0 when it fires
       this.turnTimer = setTimeout(() => this.checkFlag(side), this.remaining(side) + 5);
@@ -230,9 +302,9 @@ export class Game {
   }
 
   private checkFlag(side: Color): void {
-    if (this.status !== "active" || this.turn !== side) return;
+    if (this.s.status !== "active" || this.turn !== side) return;
     if (this.remaining(side) > 0) return this.scheduleTurnTimer();
-    this.clocks[side] = 0;
+    this.s.clocks[side] = 0;
     this.flag(side);
   }
 
@@ -244,58 +316,64 @@ export class Game {
 
   resign(userId: string): void {
     const c = this.colorOf(userId);
-    if (!c || this.status !== "active") return;
-    if (this.moves.length < 2) return this.finish(null, "aborted");
+    if (!c || this.s.status !== "active") return;
+    if (this.s.moves.length < 2) return this.finish(null, "aborted");
     this.finish(other(c), "resignation");
   }
 
   abort(userId: string): void {
-    if (this.colorOf(userId) && this.status === "active" && this.moves.length < 2) this.finish(null, "aborted");
+    if (this.colorOf(userId) && this.s.status === "active" && this.s.moves.length < 2) this.finish(null, "aborted");
   }
 
   offerDraw(userId: string): void {
     const c = this.colorOf(userId);
-    if (!c || this.status !== "active" || this.moves.length < 2) return;
-    if (this.drawOfferFrom === other(c)) return this.finish(null, "agreement");
-    if (this.drawOfferFrom === c) return;
-    this.drawOfferFrom = c;
+    if (!c || this.s.status !== "active" || this.s.moves.length < 2) return;
+    if (this.s.drawOfferFrom === other(c)) return this.finish(null, "agreement");
+    if (this.s.drawOfferFrom === c) return;
+    this.s.drawOfferFrom = c;
     this.emit({ type: "draw_offer", gameId: this.id, from: c });
   }
 
   respondDraw(userId: string, accept: boolean): void {
     const c = this.colorOf(userId);
-    if (!c || this.status !== "active" || this.drawOfferFrom !== other(c)) return;
+    if (!c || this.s.status !== "active" || this.s.drawOfferFrom !== other(c)) return;
     if (accept) return this.finish(null, "agreement");
-    this.drawOfferFrom = null;
+    this.s.drawOfferFrom = null;
     this.emit({ type: "draw_offer", gameId: this.id, from: null, declinedBy: c });
   }
 
   addChat(userId: string, text: string): void {
     const c = this.colorOf(userId);
     if (!c) return;
-    const line = { from: this.player(c).username, text, ts: Date.now() };
-    this.chat = [...this.chat, line].slice(-MAX_CHAT_HISTORY);
+    const line = { from: this.s[c].username, text, ts: Date.now() };
+    this.s.chat = [...this.s.chat, line].slice(-MAX_CHAT_HISTORY);
     this.emit({ type: "chat", gameId: this.id, line });
+  }
+
+  private armAbandon(c: Color, delayMs: number): void {
+    const pending = this.abandonTimers[c];
+    if (pending) clearTimeout(pending);
+    this.abandonTimers[c] = setTimeout(() => {
+      if (this.s.status !== "active" || this.s.connected[c]) return;
+      if (this.s.moves.length < 2) this.finish(null, "aborted");
+      else this.finish(other(c), "abandonment");
+    }, delayMs);
   }
 
   setConnected(userId: string, connected: boolean): void {
     const c = this.colorOf(userId);
-    if (!c || this.connected[c] === connected) return;
-    this.connected[c] = connected;
+    if (!c || this.s.connected[c] === connected) return;
+    this.s.connected[c] = connected;
     const pending = this.abandonTimers[c];
-    if (pending) clearTimeout(pending.timer);
+    if (pending) clearTimeout(pending);
     delete this.abandonTimers[c];
+    this.s.abandonAt[c] = null;
 
-    if (!connected && this.status === "active") {
-      const at = Date.now() + config.abandonTimeoutMs;
-      const timer = setTimeout(() => {
-        if (this.status !== "active" || this.connected[c]) return;
-        if (this.moves.length < 2) this.finish(null, "aborted");
-        else this.finish(other(c), "abandonment");
-      }, config.abandonTimeoutMs);
-      this.abandonTimers[c] = { timer, at };
+    if (!connected && this.s.status === "active") {
+      this.s.abandonAt[c] = Date.now() + config.abandonTimeoutMs;
+      this.armAbandon(c, config.abandonTimeoutMs);
     }
-    if (!connected && this.rematchFrom === other(c)) this.rematchFrom = null;
+    if (!connected && this.s.rematchFrom === other(c)) this.s.rematchFrom = null;
     this.emit({
       type: "presence",
       gameId: this.id,
@@ -306,66 +384,67 @@ export class Game {
   }
 
   private finish(winner: Color | null, reason: string): void {
-    if (this.status !== "active") return;
+    if (this.s.status !== "active") return;
     const endedAt = Date.now();
     // freeze the side-to-move's clock at the moment the game ended
-    if (this.clockRunning) this.clocks[this.turn] = this.remaining(this.turn, endedAt);
-    this.status = "finished";
-    this.drawOfferFrom = null;
-    if (this.turnTimer) clearTimeout(this.turnTimer);
-    for (const t of Object.values(this.abandonTimers)) clearTimeout(t.timer);
-    this.abandonTimers = {};
+    if (clockRunning(this.s)) this.s.clocks[this.turn] = this.remaining(this.turn, endedAt);
+    this.s.status = "finished";
+    this.s.drawOfferFrom = null;
+    this.s.abandonAt = { white: null, black: null };
+    this.clearTimers();
 
+    const { white, black } = this.s;
     const aborted = reason === "aborted";
     const score = winner === "white" ? 1 : winner === "black" ? 0 : 0.5;
-    const whiteDelta = aborted ? 0 : eloDelta(this.white.rating, this.black.rating, score, this.white.games);
-    const blackDelta = aborted ? 0 : eloDelta(this.black.rating, this.white.rating, 1 - score, this.black.games);
-    this.result = { winner, reason, whiteDelta, blackDelta };
+    const whiteDelta = aborted ? 0 : eloDelta(white.rating, black.rating, score, white.games);
+    const blackDelta = aborted ? 0 : eloDelta(black.rating, white.rating, 1 - score, black.games);
+    this.s.result = { winner, reason, whiteDelta, blackDelta };
 
     const resultTag = winner === "white" ? "1-0" : winner === "black" ? "0-1" : "1/2-1/2";
     this.chess.setHeader("Result", aborted ? "*" : resultTag);
     this.chess.setHeader("Termination", reason);
 
-    if (!aborted) {
-      try {
-        repo.saveFinishedGame({
+    // the manager persists this (async) once onFinish fires; aborted games aren't rated or stored
+    this.record = aborted
+      ? null
+      : {
           id: this.id,
-          whiteId: this.white.id,
-          blackId: this.black.id,
-          whiteName: this.white.username,
-          blackName: this.black.username,
-          whiteRating: this.white.rating,
-          blackRating: this.black.rating,
+          whiteId: white.id,
+          blackId: black.id,
+          whiteName: white.username,
+          blackName: black.username,
+          whiteRating: white.rating,
+          blackRating: black.rating,
           whiteDelta,
           blackDelta,
-          tc: this.tc.id,
+          tc: this.s.tc.id,
           result: resultTag,
           reason,
           pgn: this.chess.pgn(),
-          moves: this.moves.map(
-            (m): StoredMove => ({ san: m.san, uci: `${m.from}${m.to}${m.promotion ?? ""}`, clock: m.clock }),
-          ),
-          startedAt: this.startedAt,
+          moves: this.s.moves.map((m): StoredMove => ({ san: m.san, uci: `${m.from}${m.to}${m.promotion ?? ""}`, clock: m.clock })),
+          startedAt: this.s.startedAt,
           endedAt,
-        });
-      } catch (err) {
-        log.error(`failed to persist game ${this.id}`, err);
-      }
-    }
+        };
 
     this.emit({
       type: "game_over",
       gameId: this.id,
-      result: this.result,
-      clocks: this.clockSnapshot(endedAt),
+      result: this.s.result,
+      clocks: clocksOf(this.s, endedAt),
       pgn: this.chess.pgn(),
     });
     this.onFinish(this);
   }
 
-  /** Called by the manager when the game is evicted from memory. */
-  dispose(): void {
+  private clearTimers(): void {
     if (this.turnTimer) clearTimeout(this.turnTimer);
-    for (const t of Object.values(this.abandonTimers)) clearTimeout(t.timer);
+    this.turnTimer = null;
+    for (const t of Object.values(this.abandonTimers)) clearTimeout(t);
+    this.abandonTimers = {};
+  }
+
+  /** Stop all timers (game evicted from memory or handed to another instance). */
+  dispose(): void {
+    this.clearTimers();
   }
 }

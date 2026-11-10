@@ -1,14 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { after, beforeEach, mock, test } from "node:test";
-
-process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "chess-test-"));
-const { Game } = await import("./Game.ts");
-const { repo } = await import("./db.ts");
-const { parseTimeControl, parseClientMessage } = await import("./protocol.ts");
-const { eloDelta } = await import("./elo.ts");
+import { eloDelta } from "./elo.ts";
+import { Game } from "./Game.ts";
+import { parseClientMessage, parseTimeControl } from "./protocol.ts";
 
 mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_000_000 });
 after(() => mock.timers.reset());
@@ -16,12 +10,11 @@ after(() => mock.timers.reset());
 let n = 0;
 function setup(tc = "3+2") {
   n++;
-  const w = repo.createUser(`w${n}`, `white_${n}`, "x")!;
-  const b = repo.createUser(`b${n}`, `black_${n}`, "x")!;
+  const w = { id: `w${n}`, username: `white_${n}`, rating: 1200, games: 0 };
+  const b = { id: `b${n}`, username: `black_${n}`, rating: 1200, games: 0 };
   const sent: { type: string; [k: string]: unknown }[] = [];
   const finished: unknown[] = [];
-  const info = (u: typeof w) => ({ id: u.id, username: u.username, rating: u.rating, games: u.games });
-  const game = new Game(info(w), info(b), parseTimeControl(tc)!, (m) => sent.push(m as never), (g) => finished.push(g));
+  const game = new Game({ white: w, black: b, tc: parseTimeControl(tc)! }, (m) => sent.push(m as never), (g) => finished.push(g));
   game.start();
   const last = (type: string) => [...sent].reverse().find((m) => m.type === type);
   return { game, w: w.id, b: b.id, sent, finished, last };
@@ -65,7 +58,7 @@ test("flagging loses on time", () => {
   assert.equal(game.status, "finished");
   assert.deepEqual([game.result?.winner, game.result?.reason], ["black", "timeout"]);
   assert.equal(finished.length, 1);
-  assert.ok(repo.findGame(game.id), "rated game is persisted");
+  assert.equal(game.record?.result, "0-1", "rated game produces a record to persist");
 });
 
 test("flagging against a lone king is a draw", () => {
@@ -84,7 +77,7 @@ test("no first move within the limit aborts without rating changes", () => {
   mock.timers.tick(30_001);
   assert.equal(game.result?.reason, "aborted");
   assert.equal(game.result?.whiteDelta, 0);
-  assert.equal(repo.findGame(game.id), null, "aborted games are not stored");
+  assert.equal(game.record, null, "aborted games are not stored");
 });
 
 test("fool's mate ends in checkmate and updates ratings", () => {
@@ -96,9 +89,8 @@ test("fool's mate ends in checkmate and updates ratings", () => {
   assert.deepEqual([game.result?.winner, game.result?.reason], ["black", "checkmate"]);
   assert.ok((game.result?.blackDelta ?? 0) > 0);
   assert.equal(last("game_over")?.gameId, game.id);
-  const black = repo.findUserById(b)!;
-  assert.equal(black.wins, 1);
-  assert.equal(black.rating, 1200 + game.result!.blackDelta);
+  assert.deepEqual([game.record?.result, game.record?.blackDelta, game.record?.moves.length], ["0-1", game.result!.blackDelta, 4]);
+  assert.match(game.record!.pgn, /Qh4#/);
 });
 
 test("draw offer, decline, re-offer and accept", () => {
@@ -154,4 +146,22 @@ test("elo is symmetric for equal ratings and favours upsets", () => {
   assert.equal(eloDelta(1500, 1500, 1, 50), 12);
   assert.equal(eloDelta(1500, 1500, 0, 50), -12);
   assert.ok(eloDelta(1200, 1800, 1, 50) > eloDelta(1800, 1200, 1, 50));
+});
+
+test("a game restored from its snapshot keeps clocks and flags on time (instance takeover)", () => {
+  const { game, w, b } = ctx;
+  game.move(w, { from: "e2", to: "e4" });
+  game.move(b, { from: "e7", to: "e5" });
+  mock.timers.tick(20_000);
+  const snap = JSON.parse(JSON.stringify(game.snapshot()));
+  game.dispose(); // old owner dies
+  const finished: unknown[] = [];
+  const adopted = new Game(snap, () => {}, (g) => finished.push(g));
+  adopted.resume();
+  assert.equal(adopted.remaining("white"), 160_000);
+  assert.equal(adopted.chess.fen(), game.chess.fen());
+  assert.equal(adopted.move(b, { from: "d7", to: "d5" }), "Not your turn");
+  mock.timers.tick(160_010);
+  assert.deepEqual([adopted.result?.winner, adopted.result?.reason], ["black", "timeout"]);
+  assert.equal(finished.length, 1);
 });

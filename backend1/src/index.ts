@@ -2,10 +2,11 @@ import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 import { verifyToken } from "./auth.ts";
 import { config } from "./config.ts";
-import { repo } from "./db.ts";
+import { migrate, repo } from "./db.ts";
 import { GameManager } from "./GameManager.ts";
 import { createHttpHandler } from "./http.ts";
 import { log } from "./logger.ts";
+import { closeRedis, waitForRedis } from "./redis.ts";
 
 const HEARTBEAT_MS = 25_000;
 
@@ -14,10 +15,10 @@ const server = createServer(createHttpHandler(manager));
 const wss = new WebSocketServer({ noServer: true, maxPayload: 8 * 1024 });
 
 // Authenticate before accepting the upgrade so anonymous sockets never reach the game layer.
-server.on("upgrade", (req, socket, head) => {
+server.on("upgrade", async (req, socket, head) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   const userId = url.pathname === "/ws" ? verifyToken(url.searchParams.get("token")) : null;
-  if (!userId || !repo.findUserById(userId)) {
+  if (!userId || !(await repo.findUserById(userId).catch(() => null))) {
     socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
     socket.destroy();
     return;
@@ -41,17 +42,27 @@ server.on("error", (err: NodeJS.ErrnoException) => {
   process.exit(1);
 });
 
-server.listen(config.port, () => log.info(`chess server on http://localhost:${config.port}`));
-
-function shutdown(signal: string): void {
-  log.info(`${signal} received, shutting down`);
-  manager.shutdown();
-  wss.close();
-  server.close(() => {
-    repo.close();
-    process.exit(0);
-  });
-  setTimeout(() => process.exit(0), 3000).unref();
+try {
+  await Promise.all([waitForRedis(), migrate()]);
+  await manager.start();
+} catch (err) {
+  log.error((err as Error).message);
+  process.exit(1);
 }
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
+server.listen(config.port, () => log.info(`chess server on http://localhost:${config.port}`, { instance: config.instanceId }));
+
+let stopping = false;
+async function shutdown(signal: string): Promise<void> {
+  if (stopping) return;
+  stopping = true;
+  log.info(`${signal} received, handing games to the cluster and shutting down`);
+  setTimeout(() => process.exit(0), 5000).unref();
+  server.close();
+  await manager.shutdown().catch((err) => log.error("shutdown failed", err));
+  wss.close();
+  await closeRedis();
+  await repo.close().catch(() => undefined);
+  process.exit(0);
+}
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));

@@ -2,15 +2,27 @@ import { randomInt } from "node:crypto";
 import type { WebSocket } from "ws";
 import { config } from "./config.ts";
 import { repo } from "./db.ts";
-import { Game, type PlayerInfo } from "./Game.ts";
+import { Game, viewOf, type GameSnapshot, type PlayerInfo } from "./Game.ts";
 import { log } from "./logger.ts";
-import { parseClientMessage, parseTimeControl, type ClientMessage, type Color } from "./protocol.ts";
+import { parseClientMessage, parseTimeControl, TIME_CONTROLS, type ClientMessage, type Color } from "./protocol.ts";
+import { bus, CH, games, presence, queue, rooms } from "./redis.ts";
 
-interface Room {
-  code: string;
-  hostId: string;
-  tc: string;
-  color: Color | "random";
+/**
+ * Cluster-aware game coordinator. Every instance runs one of these.
+ *
+ * - Sockets are local; everything a user should see is published on `ch:user:{uid}`, and each
+ *   instance forwards those messages to its own sockets for that user. Spectators use `ch:watch:{gid}`.
+ * - Each game is *owned* by one instance (Redis lease), which holds the Game object and its timers.
+ *   Other instances forward player actions to the owner over `ch:instance:{iid}`.
+ * - After every change the owner commits a snapshot to Redis. If an owner dies, its lease expires and
+ *   any instance adopts the game from the snapshot (`takeover`) — clocks resume exactly.
+ */
+
+type GameCommand = ClientMessage | { type: "presence"; connected: boolean };
+interface Envelope {
+  gid: string;
+  uid: string;
+  msg: GameCommand;
 }
 
 interface Bucket {
@@ -21,60 +33,102 @@ interface Bucket {
 
 const RATE_PER_SEC = 12;
 const RATE_STRIKES_TO_CLOSE = 20;
-const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+/** don't buffer unboundedly for a client that stopped reading */
+const MAX_BUFFERED_BYTES = 1 << 20;
+
+const GAME_ACTIONS = new Set(["move", "resign", "abort", "draw_offer", "draw_respond", "chat", "rematch_offer", "rematch_decline"]);
 
 export class GameManager {
   private sockets = new Map<string, Set<WebSocket>>();
+  private userHandlers = new Map<string, (raw: string) => void>();
+  private watching = new Map<WebSocket, string>();
+  private watchHandlers = new Map<string, (raw: string) => void>();
   private buckets = new WeakMap<WebSocket, Bucket>();
-  private games = new Map<string, Game>();
-  /** userId -> id of the game they are currently playing (active only) */
-  private activeGameOf = new Map<string, string>();
-  /** tc -> userIds waiting, oldest first */
-  private queues = new Map<string, string[]>();
-  private rooms = new Map<string, Room>();
+  private owned = new Map<string, Game>();
+  private outbox = new Map<string, Promise<void>>();
+  private timer: NodeJS.Timeout | null = null;
+  private takingOver = new Map<string, Promise<Game | null>>();
+  private stopping = false;
+
+  async start(): Promise<void> {
+    await presence.heartbeat();
+    await bus.on(CH.instance(config.instanceId), (raw) => {
+      const env = JSON.parse(raw) as Envelope;
+      void this.onCommand(env);
+    });
+    this.timer = setInterval(() => void this.tick(), config.heartbeatMs);
+    void this.tick();
+  }
 
   // ---------- connections ----------
 
   connect(ws: WebSocket, userId: string): void {
-    const set = this.sockets.get(userId) ?? new Set();
-    set.add(ws);
-    this.sockets.set(userId, set);
     this.buckets.set(ws, { tokens: RATE_PER_SEC, last: Date.now(), strikes: 0 });
-
-    const user = repo.findUserById(userId);
-    this.sendTo(ws, { type: "hello", user, ...this.lobbyStatus(userId) });
-
-    const active = this.activeGame(userId);
-    if (active) {
-      active.setConnected(userId, true);
-      this.sendTo(ws, { type: "game_state", game: active.view(userId) });
-    }
-
+    // serialise this socket's messages behind its setup, so nothing is processed before we're subscribed
+    let chain: Promise<void> = this.attach(ws, userId).catch((err) => {
+      log.error("socket setup failed", err);
+      ws.close(1011, "Setup failed");
+    });
     ws.on("message", (data) => {
       if (!this.allow(ws)) return;
       const msg = parseClientMessage(data.toString());
       if (!msg) return this.sendTo(ws, { type: "error", message: "Malformed message" });
-      try {
-        this.handle(ws, userId, msg);
-      } catch (err) {
-        log.error("message handler failed", err);
-        this.sendTo(ws, { type: "error", message: "Something went wrong" });
-      }
+      chain = chain.then(() =>
+        this.handle(ws, userId, msg).catch((err) => {
+          log.error("message handler failed", err);
+          this.sendTo(ws, { type: "error", message: "Something went wrong. Please try again." });
+        }),
+      );
     });
-    ws.on("close", () => this.disconnect(ws, userId));
+    ws.on("close", () => {
+      chain = chain.then(() => this.detach(ws, userId)).catch((err) => log.error("socket teardown failed", err));
+    });
   }
 
-  private disconnect(ws: WebSocket, userId: string): void {
+  private async attach(ws: WebSocket, userId: string): Promise<void> {
+    let set = this.sockets.get(userId);
+    if (!set) {
+      set = new Set();
+      this.sockets.set(userId, set);
+      const forward = (raw: string) => {
+        for (const s of this.sockets.get(userId) ?? []) this.sendRaw(s, raw);
+      };
+      this.userHandlers.set(userId, forward);
+      await bus.on(CH.user(userId), forward);
+      await presence.add(userId);
+    }
+    set.add(ws);
+
+    const user = await repo.findUserById(userId);
+    this.sendTo(ws, { type: "hello", user, instance: config.instanceId, ...(await this.lobbyStatus(userId)) });
+
+    const gid = await games.activeOf(userId);
+    if (!gid) return;
+    // answer from the snapshot right away; the owner may be mid-failover and not reachable yet
+    const snap = await games.load(gid);
+    if (snap?.status === "active") this.sendTo(ws, { type: "game_state", game: viewOf(snap, userId, await games.watcherCount(gid)) });
+    await this.route(gid, userId, { type: "presence", connected: true });
+  }
+
+  private async detach(ws: WebSocket, userId: string): Promise<void> {
+    if (this.stopping) return;
+    await this.unwatch(ws, userId);
     const set = this.sockets.get(userId);
     set?.delete(ws);
-    if (set && set.size > 0) return;
+    if (!set || set.size > 0) return;
+
     this.sockets.delete(userId);
-    this.leaveQueue(userId);
-    this.closeRoomsOf(userId);
-    this.activeGame(userId)?.setConnected(userId, false);
-    for (const g of this.games.values()) {
-      if (g.spectators.delete(userId)) this.broadcastSpectators(g);
-    }
+    const h = this.userHandlers.get(userId);
+    this.userHandlers.delete(userId);
+    if (h) await bus.off(CH.user(userId), h);
+    await presence.remove(userId);
+
+    // still connected through another instance? then nothing changes for them
+    if (await presence.isOnline(userId)) return;
+    await queue.leave(userId);
+    await rooms.closeFor(userId);
+    const gid = await games.activeOf(userId);
+    if (gid) await this.route(gid, userId, { type: "presence", connected: false });
   }
 
   private allow(ws: WebSocket): boolean {
@@ -92,269 +146,377 @@ export class GameManager {
     return false;
   }
 
+  private sendRaw(ws: WebSocket, raw: string): void {
+    if (ws.readyState !== ws.OPEN) return;
+    if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+      ws.close(1013, "Client too slow");
+      return;
+    }
+    ws.send(raw);
+  }
+
   private sendTo(ws: WebSocket, msg: object): void {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+    this.sendRaw(ws, JSON.stringify(msg));
   }
 
-  private sendUser(userId: string, msg: object): void {
-    const data = JSON.stringify(msg);
-    for (const ws of this.sockets.get(userId) ?? []) if (ws.readyState === ws.OPEN) ws.send(data);
+  private toUser(uid: string, msg: object): void {
+    bus.publish(CH.user(uid), msg);
   }
 
-  isOnline(userId: string): boolean {
-    return this.sockets.has(userId);
-  }
+  // ---------- routing ----------
 
-  // ---------- message routing ----------
-
-  private handle(ws: WebSocket, userId: string, msg: ClientMessage): void {
+  private async handle(ws: WebSocket, userId: string, msg: ClientMessage): Promise<void> {
     switch (msg.type) {
       case "ping":
         return this.sendTo(ws, { type: "pong", t: msg.t });
       case "queue":
         return this.enqueue(userId, msg.tc);
       case "cancel_queue":
-        this.leaveQueue(userId);
-        return this.sendUser(userId, { type: "lobby", ...this.lobbyStatus(userId) });
+        await queue.leave(userId);
+        return this.pushLobby(userId);
       case "create_room":
         return this.createRoom(userId, msg.tc, msg.color);
       case "join_room":
         return this.joinRoom(userId, msg.code);
       case "cancel_room":
-        this.closeRoomsOf(userId);
-        return this.sendUser(userId, { type: "lobby", ...this.lobbyStatus(userId) });
+        await rooms.closeFor(userId);
+        return this.pushLobby(userId);
       case "spectate":
         return this.spectate(ws, userId, msg.gameId);
-      case "unspectate": {
-        const g = this.games.get(msg.gameId);
-        if (g?.spectators.delete(userId)) this.broadcastSpectators(g);
-        return;
-      }
-      case "rematch_offer":
-        return this.rematch(userId, msg.gameId);
-      case "rematch_decline":
-        return this.declineRematch(userId, msg.gameId);
+      case "unspectate":
+        return this.unwatch(ws, userId);
     }
+    if (GAME_ACTIONS.has(msg.type) && "gameId" in msg) return this.route(msg.gameId, userId, msg);
+  }
 
-    const game = this.games.get(msg.gameId);
-    if (!game || !game.colorOf(userId)) {
-      return this.sendTo(ws, { type: "error", message: "Game not found" });
+  /** Run a command on the game's owner — locally, via pub/sub, or by adopting an orphaned game. */
+  private async route(gid: string, uid: string, msg: GameCommand): Promise<void> {
+    const local = this.owned.get(gid);
+    if (local) return this.apply(local, uid, msg);
+    const owner = await games.ownerOf(gid);
+    if (owner && owner !== config.instanceId) {
+      const received = await bus.deliver(CH.instance(owner), { gid, uid, msg } satisfies Envelope);
+      if (received > 0) return;
+      // nobody subscribed: the owner process is gone. Take the game now instead of waiting out its lease.
+      log.warn("owner unreachable, taking over", { id: gid, owner });
+      await games.steal(gid, owner);
     }
+    const adopted = await this.takeover(gid);
+    if (adopted) return this.apply(adopted, uid, msg);
+    if (msg.type !== "presence") this.toUser(uid, { type: "error", message: "That game is no longer available." });
+  }
+
+  private async onCommand({ gid, uid, msg }: Envelope): Promise<void> {
+    const game = this.owned.get(gid) ?? (await this.takeover(gid));
+    if (game) await this.apply(game, uid, msg);
+    else if (msg.type !== "presence") this.toUser(uid, { type: "error", message: "That game is no longer available." });
+  }
+
+  /** Owner-side: actually mutate the game. */
+  private async apply(game: Game, uid: string, msg: GameCommand): Promise<void> {
+    if (!game.colorOf(uid)) return;
     switch (msg.type) {
+      case "presence":
+        game.setConnected(uid, msg.connected);
+        if (msg.connected) this.toUser(uid, { type: "game_state", game: game.view(uid, await games.watcherCount(game.id)) });
+        return;
       case "move": {
-        const err = game.move(userId, msg.move);
-        if (err) this.sendTo(ws, { type: "move_rejected", gameId: game.id, reason: err, game: game.view(userId) });
+        const err = game.move(uid, msg.move);
+        if (err) this.toUser(uid, { type: "move_rejected", gameId: game.id, reason: err, game: game.view(uid, await games.watcherCount(game.id)) });
         return;
       }
       case "resign":
-        return game.resign(userId);
+        return game.resign(uid);
       case "abort":
-        return game.abort(userId);
+        return game.abort(uid);
       case "draw_offer":
-        return game.offerDraw(userId);
+        return game.offerDraw(uid);
       case "draw_respond":
-        return game.respondDraw(userId, msg.accept);
+        return game.respondDraw(uid, msg.accept);
       case "chat":
-        return game.addChat(userId, msg.text);
+        return game.addChat(uid, msg.text);
+      case "rematch_offer":
+        return this.rematch(game, uid);
+      case "rematch_decline":
+        return this.declineRematch(game, uid);
+    }
+  }
+
+  // ---------- ownership ----------
+
+  private adopt(snapshot: GameSnapshot): Game {
+    const game: Game = new Game(snapshot, (msg, to) => this.deliver(game, msg, to), (g) => this.onFinished(g));
+    this.owned.set(game.id, game);
+    return game;
+  }
+
+  /** Adopt a game whose owner is gone. Deduplicated so concurrent callers share one attempt. */
+  private takeover(gid: string): Promise<Game | null> {
+    const pending = this.takingOver.get(gid);
+    if (pending) return pending;
+    const attempt = (async () => {
+      const snap = await games.load(gid);
+      if (!snap) {
+        await games.dropLive(gid);
+        return null;
+      }
+      const claimed = (await games.claim(gid)) || (await games.ownerOf(gid)) === config.instanceId;
+      if (!claimed) return null;
+      const existing = this.owned.get(gid);
+      if (existing) return existing;
+      const game = this.adopt(snap);
+      log.info("adopted game", { id: gid, status: snap.status, moves: snap.moves.length });
+      if (game.status === "active") {
+        for (const id of [game.whiteId, game.blackId]) {
+          const online = await presence.isOnline(id);
+          if (game.connected[game.colorOf(id)!] !== online) game.setConnected(id, online);
+        }
+        game.resume();
+      } else {
+        this.scheduleEviction(game);
+      }
+      return game;
+    })().finally(() => this.takingOver.delete(gid));
+    this.takingOver.set(gid, attempt);
+    return attempt;
+  }
+
+  /** Publish an event and commit the snapshot that produced it, in order per game. */
+  private deliver(game: Game, msg: object, to?: string): void {
+    const payload = JSON.stringify(msg);
+    const channels = to ? [CH.user(to)] : [CH.user(game.whiteId), CH.user(game.blackId), CH.watch(game.id)];
+    const snapshot = game.snapshot();
+    const prev = this.outbox.get(game.id) ?? Promise.resolve();
+    const next = prev
+      .then(() => games.commit(snapshot, channels.map((ch) => [ch, payload])))
+      .catch((err) => log.error(`commit failed for game ${game.id}`, err));
+    this.outbox.set(game.id, next);
+  }
+
+  private onFinished(game: Game): void {
+    log.info("game finished", { id: game.id, ...game.result });
+    if (game.record) {
+      repo.saveFinishedGame(game.record).catch((err) => log.error(`failed to save game ${game.id}`, err));
+    }
+    this.scheduleEviction(game);
+  }
+
+  private scheduleEviction(game: Game): void {
+    // keep finished games briefly for rematches
+    setTimeout(() => {
+      if (this.owned.get(game.id) !== game) return;
+      game.dispose();
+      this.owned.delete(game.id);
+      this.outbox.delete(game.id);
+      void games.release(game.id);
+    }, config.finishedGameTtlMs).unref();
+  }
+
+  private async tick(): Promise<void> {
+    try {
+      await presence.heartbeat();
+      for (const uid of this.sockets.keys()) await presence.add(uid); // survives a Redis restart
+      for (const [gid, game] of this.owned) {
+        if (await games.renew(gid)) continue;
+        // lease expired (we stalled) and someone else may have it — never run two clocks
+        if (await games.claim(gid)) continue;
+        log.warn("lost ownership of game", { id: gid });
+        game.dispose();
+        this.owned.delete(gid);
+      }
+      // adopt orphaned games (owner crashed or shut down)
+      for (const gid of await games.liveIds(500)) {
+        if (!this.owned.has(gid) && !(await games.ownerOf(gid))) await this.takeover(gid);
+      }
+    } catch (err) {
+      log.warn("cluster tick failed", { message: (err as Error).message });
     }
   }
 
   // ---------- lobby ----------
 
-  private lobbyStatus(userId: string) {
-    let queuedFor: string | null = null;
-    for (const [tc, q] of this.queues) if (q.includes(userId)) queuedFor = tc;
-    const room = [...this.rooms.values()].find((r) => r.hostId === userId) ?? null;
+  private async lobbyStatus(userId: string) {
+    const [queuedFor, room] = await Promise.all([queue.of(userId), rooms.of(userId)]);
     return { queuedFor, room };
   }
 
-  private activeGame(userId: string): Game | undefined {
-    const id = this.activeGameOf.get(userId);
-    return id ? this.games.get(id) : undefined;
+  private async pushLobby(userId: string): Promise<void> {
+    this.toUser(userId, { type: "lobby", ...(await this.lobbyStatus(userId)) });
   }
 
   /** If the user is mid-game, re-send it instead of starting something new. */
-  private redirectIfPlaying(userId: string): boolean {
-    const g = this.activeGame(userId);
-    if (!g) return false;
-    this.sendUser(userId, { type: "game_state", game: g.view(userId) });
+  private async redirectIfPlaying(userId: string): Promise<boolean> {
+    const gid = await games.activeOf(userId);
+    if (!gid) return false;
+    const snap = await games.load(gid);
+    if (!snap || snap.status !== "active") return false;
+    this.toUser(userId, { type: "game_state", game: viewOf(snap, userId, await games.watcherCount(gid)) });
     return true;
   }
 
-  private enqueue(userId: string, tc: string): void {
-    if (this.redirectIfPlaying(userId)) return;
-    this.leaveQueue(userId);
-    this.closeRoomsOf(userId);
-    const queue = this.queues.get(tc) ?? [];
-    // ponytail: FIFO pairing; add rating-window matching once the player pool is big enough to afford waiting
-    const opponent = queue.find((id) => id !== userId && this.isOnline(id));
-    if (opponent) {
-      this.queues.set(tc, queue.filter((id) => id !== opponent));
+  private async enqueue(userId: string, tc: string): Promise<void> {
+    if (await this.redirectIfPlaying(userId)) return;
+    await rooms.closeFor(userId);
+    for (let tries = 0; tries < 20; tries++) {
+      const opponent = await queue.match(userId, tc);
+      if (!opponent) return this.pushLobby(userId);
+      // skip stale queue entries (opponent vanished or already playing)
+      if (opponent === userId || !(await presence.isOnline(opponent)) || (await games.activeOf(opponent))) continue;
       const [w, b] = randomInt(2) === 0 ? [userId, opponent] : [opponent, userId];
-      this.startGame(w, b, tc);
-      return;
+      if (await this.startGame(w, b, tc)) return;
     }
-    this.queues.set(tc, [...queue, userId]);
-    this.sendUser(userId, { type: "lobby", ...this.lobbyStatus(userId) });
+    await this.pushLobby(userId);
   }
 
-  private leaveQueue(userId: string): void {
-    for (const [tc, q] of this.queues) {
-      if (q.includes(userId)) this.queues.set(tc, q.filter((id) => id !== userId));
-    }
+  private async createRoom(userId: string, tc: string, color: Color | "random"): Promise<void> {
+    if (await this.redirectIfPlaying(userId)) return;
+    await queue.leave(userId);
+    await rooms.closeFor(userId);
+    await rooms.create(userId, tc, color);
+    await this.pushLobby(userId);
   }
 
-  private createRoom(userId: string, tc: string, color: Color | "random"): void {
-    if (this.redirectIfPlaying(userId)) return;
-    this.leaveQueue(userId);
-    this.closeRoomsOf(userId);
-    let code = "";
-    do {
-      code = Array.from({ length: 6 }, () => ROOM_ALPHABET[randomInt(ROOM_ALPHABET.length)]).join("");
-    } while (this.rooms.has(code));
-    this.rooms.set(code, { code, hostId: userId, tc, color });
-    this.sendUser(userId, { type: "lobby", ...this.lobbyStatus(userId) });
-  }
-
-  private joinRoom(userId: string, code: string): void {
-    if (this.redirectIfPlaying(userId)) return;
-    const room = this.rooms.get(code);
-    if (!room || !this.isOnline(room.hostId)) {
-      return this.sendUser(userId, { type: "error", message: "That invite has expired or does not exist." });
-    }
-    if (room.hostId === userId) {
-      return this.sendUser(userId, { type: "error", message: "Share this link with a friend — you can't join your own room." });
-    }
-    if (this.activeGame(room.hostId)) {
-      return this.sendUser(userId, { type: "error", message: "Your friend is already in another game." });
-    }
-    this.rooms.delete(code);
-    this.leaveQueue(userId);
-    this.closeRoomsOf(userId);
+  private async joinRoom(userId: string, code: string): Promise<void> {
+    if (await this.redirectIfPlaying(userId)) return;
+    const fail = (message: string) => this.toUser(userId, { type: "error", message });
+    const peek = await rooms.peek(code);
+    if (!peek || !(await presence.isOnline(peek.hostId))) return fail("That invite has expired or does not exist.");
+    if (peek.hostId === userId) return fail("Share this link with a friend — you can't join your own room.");
+    if (await games.activeOf(peek.hostId)) return fail("Your friend is already in another game.");
+    const room = await rooms.take(code);
+    if (!room) return fail("Someone else just joined that invite.");
+    await queue.leave(userId);
+    await rooms.closeFor(userId);
     const hostWhite = room.color === "white" || (room.color === "random" && randomInt(2) === 0);
-    this.startGame(hostWhite ? room.hostId : userId, hostWhite ? userId : room.hostId, room.tc);
-  }
-
-  private closeRoomsOf(userId: string): void {
-    for (const [code, r] of this.rooms) if (r.hostId === userId) this.rooms.delete(code);
+    await this.startGame(hostWhite ? room.hostId : userId, hostWhite ? userId : room.hostId, room.tc);
   }
 
   // ---------- games ----------
 
-  private playerInfo(userId: string): PlayerInfo | null {
-    const u = repo.findUserById(userId);
+  private async playerInfo(userId: string): Promise<PlayerInfo | null> {
+    const u = await repo.findUserById(userId);
     return u ? { id: u.id, username: u.username, rating: u.rating, games: u.games } : null;
   }
 
-  private startGame(whiteId: string, blackId: string, tcId: string): Game | null {
+  private async startGame(whiteId: string, blackId: string, tcId: string): Promise<Game | null> {
     const tc = parseTimeControl(tcId);
-    const white = this.playerInfo(whiteId);
-    const black = this.playerInfo(blackId);
+    const [white, black] = await Promise.all([this.playerInfo(whiteId), this.playerInfo(blackId)]);
     if (!tc || !white || !black) {
       log.warn("could not start game", { whiteId, blackId, tcId });
       return null;
     }
-    for (const id of [whiteId, blackId]) {
-      this.leaveQueue(id);
-      this.closeRoomsOf(id);
-    }
-    const game = new Game(white, black, tc, (msg, to) => this.deliver(game, msg, to), (g) => this.onFinished(g));
-    this.games.set(game.id, game);
-    this.activeGameOf.set(whiteId, game.id);
-    this.activeGameOf.set(blackId, game.id);
+    await Promise.all([whiteId, blackId].flatMap((id) => [queue.leave(id), rooms.closeFor(id)]));
+    const game: Game = new Game({ white, black, tc }, (msg, to) => this.deliver(game, msg, to), (g) => this.onFinished(g));
+    this.owned.set(game.id, game);
+    await games.claim(game.id);
     game.start();
-    if (!this.isOnline(whiteId)) game.setConnected(whiteId, false);
-    if (!this.isOnline(blackId)) game.setConnected(blackId, false);
+    for (const id of [whiteId, blackId]) if (!(await presence.isOnline(id))) game.setConnected(id, false);
     log.info("game started", { id: game.id, white: white.username, black: black.username, tc: tcId });
     return game;
   }
 
-  private deliver(game: Game, msg: object, to?: string): void {
-    if (to) return this.sendUser(to, msg);
-    this.sendUser(game.whiteId, msg);
-    this.sendUser(game.blackId, msg);
-    for (const s of game.spectators) this.sendUser(s, msg);
-  }
-
-  private onFinished(game: Game): void {
-    for (const id of [game.whiteId, game.blackId]) {
-      if (this.activeGameOf.get(id) === game.id) this.activeGameOf.delete(id);
-    }
-    log.info("game finished", { id: game.id, ...game.result });
-    // keep it around briefly for rematches and late spectators
-    setTimeout(() => {
-      if (this.games.get(game.id) === game) {
-        game.dispose();
-        this.games.delete(game.id);
+  private async spectate(ws: WebSocket, userId: string, gid: string): Promise<void> {
+    const snap = await games.load(gid);
+    if (!snap) return this.sendTo(ws, { type: "spectate_missing", gameId: gid });
+    const isPlayer = userId === snap.white.id || userId === snap.black.id;
+    let count = await games.watcherCount(gid);
+    if (!isPlayer && this.watching.get(ws) !== gid) {
+      await this.unwatch(ws, userId);
+      this.watching.set(ws, gid);
+      if (!this.watchHandlers.has(gid)) {
+        const forward = (raw: string) => {
+          for (const [s, g] of this.watching) if (g === gid) this.sendRaw(s, raw);
+        };
+        this.watchHandlers.set(gid, forward);
+        await bus.on(CH.watch(gid), forward);
       }
-    }, config.finishedGameTtlMs).unref();
-  }
-
-  private spectate(ws: WebSocket, userId: string, gameId: string): void {
-    const game = this.games.get(gameId);
-    if (!game) return this.sendTo(ws, { type: "spectate_missing", gameId });
-    if (!game.colorOf(userId)) {
-      game.spectators.add(userId);
-      this.broadcastSpectators(game);
+      count = await games.watch(gid, userId);
+      this.announceSpectators(snap, count);
     }
-    this.sendTo(ws, { type: "game_state", game: game.view(userId) });
+    // read again after subscribing so no move falls between snapshot and stream
+    const fresh = (await games.load(gid)) ?? snap;
+    this.sendTo(ws, { type: "game_state", game: viewOf(fresh, userId, count) });
   }
 
-  private broadcastSpectators(game: Game): void {
-    this.deliver(game, { type: "spectators", gameId: game.id, count: game.spectators.size });
+  private async unwatch(ws: WebSocket, userId: string): Promise<void> {
+    const gid = this.watching.get(ws);
+    if (!gid) return;
+    this.watching.delete(ws);
+    if (![...this.watching.values()].includes(gid)) {
+      const h = this.watchHandlers.get(gid);
+      this.watchHandlers.delete(gid);
+      if (h) await bus.off(CH.watch(gid), h);
+    }
+    const count = await games.unwatch(gid, userId);
+    const snap = await games.load(gid);
+    if (snap) this.announceSpectators(snap, count);
   }
 
-  private rematch(userId: string, gameId: string): void {
-    const game = this.games.get(gameId);
-    const color = game?.colorOf(userId);
-    if (!game || !color || game.status !== "finished") return;
+  private announceSpectators(snap: GameSnapshot, count: number): void {
+    const msg = JSON.stringify({ type: "spectators", gameId: snap.id, count });
+    for (const ch of [CH.user(snap.white.id), CH.user(snap.black.id), CH.watch(snap.id)]) bus.publish(ch, msg);
+  }
+
+  private async rematch(game: Game, userId: string): Promise<void> {
+    const color = game.colorOf(userId)!;
+    if (game.status !== "finished") return;
     const opponentId = color === "white" ? game.blackId : game.whiteId;
-    if (this.activeGame(userId) || this.activeGame(opponentId)) {
-      return this.sendUser(userId, { type: "error", message: "Rematch unavailable — a player is already in another game." });
+    if ((await games.activeOf(userId)) || (await games.activeOf(opponentId))) {
+      return this.toUser(userId, { type: "error", message: "Rematch unavailable — a player is already in another game." });
     }
     if (game.rematchFrom && game.rematchFrom !== color) {
       game.rematchFrom = null;
-      // colors swap for the rematch
-      this.startGame(game.blackId, game.whiteId, game.tcId);
+      await this.startGame(game.blackId, game.whiteId, game.tcId); // colours swap
       return;
     }
-    if (!this.isOnline(opponentId)) {
-      return this.sendUser(userId, { type: "error", message: "Your opponent has left." });
-    }
+    if (!(await presence.isOnline(opponentId))) return this.toUser(userId, { type: "error", message: "Your opponent has left." });
     game.rematchFrom = color;
-    this.deliver(game, { type: "rematch", gameId, from: color });
+    this.deliver(game, { type: "rematch", gameId: game.id, from: color });
   }
 
-  private declineRematch(userId: string, gameId: string): void {
-    const game = this.games.get(gameId);
-    const color = game?.colorOf(userId);
-    if (!game || !color || !game.rematchFrom || game.rematchFrom === color) return;
+  private declineRematch(game: Game, userId: string): void {
+    const color = game.colorOf(userId)!;
+    if (!game.rematchFrom || game.rematchFrom === color) return;
     game.rematchFrom = null;
-    this.deliver(game, { type: "rematch", gameId, from: null, declinedBy: color });
+    this.deliver(game, { type: "rematch", gameId: game.id, from: null, declinedBy: color });
   }
 
-  // ---------- public queries ----------
+  // ---------- public queries (HTTP) ----------
 
-  liveGames() {
-    return [...this.games.values()]
-      .filter((g) => g.status === "active")
-      .map((g) => {
-        const v = g.view(null);
-        return { id: v.id, tc: v.tc, white: v.white, black: v.black, ply: v.moves.length, fen: g.chess.fen(), spectators: v.spectators };
-      })
-      .sort((a, b) => b.white.rating + b.black.rating - (a.white.rating + a.black.rating));
+  async liveGames() {
+    const snaps = (await games.loadMany(await games.liveIds())).filter((s) => s.status === "active");
+    const counts = await Promise.all(snaps.map((s) => games.watcherCount(s.id)));
+    return snaps.map((s, i) => {
+      const v = viewOf(s, null, counts[i]!);
+      return { id: s.id, tc: v.tc, white: v.white, black: v.black, ply: s.moves.length, fen: s.fen, spectators: v.spectators };
+    });
   }
 
-  stats() {
-    let playing = 0;
-    for (const g of this.games.values()) if (g.status === "active") playing++;
-    let waiting = 0;
-    for (const q of this.queues.values()) waiting += q.length;
-    return { online: this.sockets.size, playing, waiting };
+  async stats() {
+    const [online, playing, waiting, instances] = await Promise.all([
+      presence.onlineCount(),
+      games.liveCount(),
+      queue.waiting(TIME_CONTROLS),
+      presence.aliveInstances(),
+    ]);
+    return { online, playing, waiting, instances: instances.length };
   }
 
-  shutdown(): void {
-    for (const g of this.games.values()) g.dispose();
-    for (const set of this.sockets.values()) for (const ws of set) ws.close(1001, "Server restarting");
+  isOnline(userId: string): Promise<boolean> {
+    return presence.isOnline(userId);
+  }
+
+  /** Hand games to the rest of the cluster and drop our sockets; clients reconnect elsewhere. */
+  async shutdown(): Promise<void> {
+    this.stopping = true;
+    if (this.timer) clearInterval(this.timer);
+    await Promise.allSettled(this.outbox.values());
+    for (const [gid, game] of this.owned) {
+      game.dispose();
+      await games.release(gid);
+    }
+    this.owned.clear();
+    await presence.leave();
+    for (const set of this.sockets.values()) for (const ws of set) ws.close(1012, "Server restarting");
   }
 }
