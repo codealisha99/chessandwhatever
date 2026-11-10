@@ -24,6 +24,7 @@ export function PlayerStrip({ name, rating, color, captured, advantage, link = t
     <div className="flex items-center justify-between gap-4">
       <div className="flex min-w-0 items-center gap-3.5">
         <span
+          role="img"
           aria-label={`Plays ${color}`}
           className={`size-[18px] shrink-0 rounded-full transition-shadow ${
             color === 'white' ? 'bg-chalk-300 shadow-[inset_0_-2px_0_rgb(0_0_0/0.15)]' : 'bg-baize-950 shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_0_0_1px_rgb(255_255_255/0.1)]'

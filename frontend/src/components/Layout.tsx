@@ -1,6 +1,6 @@
 import { LogOut, Menu, Settings, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useOnline } from '../context/OnlineContext'
 import { SettingsModal } from './SettingsModal'
@@ -27,6 +27,7 @@ export function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const navigate = useNavigate()
+  const { pathname } = useLocation()
 
   const navLinks = (onClick?: () => void) =>
     NAV.map(({ to, label, end }) => (
@@ -53,7 +54,7 @@ export function Layout() {
         <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between gap-6 px-5 sm:px-8">
           <div className="flex items-center gap-10">
             <Logo />
-            <nav className="hidden items-center gap-7 md:flex">{navLinks()}</nav>
+            <nav aria-label="Main" className="hidden items-center gap-7 md:flex">{navLinks()}</nav>
           </div>
           <div className="flex items-center gap-1.5">
             {user && <ConnectionDot status={status} />}
@@ -64,7 +65,7 @@ export function Layout() {
               <>
                 <Link to={`/u/${user.username}`} className="ml-1 flex items-center gap-3 rounded-xl py-1 pl-1 pr-3 transition-colors hover:bg-white/5">
                   <Avatar name={user.username} size={32} />
-                  <span className="hidden text-sm leading-tight sm:block">
+                  <span className="hidden text-sm leading-tight lg:block">
                     <span className="block font-semibold text-baize-100">{user.username}</span>
                     <span className="digits block text-[13px] text-baize-400">{user.rating}</span>
                   </span>
@@ -96,7 +97,7 @@ export function Layout() {
           </div>
         </div>
         {menuOpen && (
-          <nav className="flex flex-col gap-1 border-t border-white/5 px-5 py-3 md:hidden">
+          <nav aria-label="Main" className="flex flex-col gap-1 border-t border-white/5 px-5 py-3 md:hidden">
             {navLinks(() => setMenuOpen(false))}
             {user ? (
               <button
@@ -119,7 +120,8 @@ export function Layout() {
         )}
       </header>
 
-      <main className="flex-1">
+      {/* keyed by path so each route change plays the page entrance once */}
+      <main key={pathname} className="flex-1 animate-page">
         <Outlet />
       </main>
 
@@ -129,7 +131,7 @@ export function Layout() {
             <Logo className="text-[1.15rem] text-baize-300" />
             <p className="annot mt-2 text-[15px] text-baize-500">Free to play, no ads. Every move checked by the server.</p>
           </div>
-          <nav className="flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-baize-400">
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-baize-400">
             {NAV.map(({ to, label }) => (
               <Link key={to} to={to} className="hover:text-baize-100">
                 {label}
@@ -152,7 +154,7 @@ export function Layout() {
             type="button"
             onClick={() => dismiss(t.id)}
             className={`pointer-events-auto animate-pop rounded-xl px-4 py-3 text-left text-sm font-medium shadow-[0_20px_40px_-12px_rgb(0_0_0/0.6)] ${
-              t.tone === 'error' ? 'bg-flag text-white' : 'bg-chalk-400 text-baize-950'
+              t.tone === 'error' ? 'bg-flag-deep text-white' : 'bg-chalk-400 text-baize-950'
             }`}
           >
             {t.text}
@@ -163,12 +165,19 @@ export function Layout() {
   )
 }
 
-function ConnectionDot({ status }: { status: string }) {
-  const online = status === 'online'
+/** connecting (first connect or a retry) is normal and brief; only a stopped connection is shown in red */
+const CONNECTION = {
+  online: { label: 'Connected', dot: 'bg-win' },
+  connecting: { label: 'Connecting', dot: 'animate-pulse bg-brass-500' },
+  offline: { label: 'Offline', dot: 'bg-flag' },
+} as const
+
+function ConnectionDot({ status }: { status: keyof typeof CONNECTION }) {
+  const { label, dot } = CONNECTION[status]
   return (
-    <span className="mr-1 hidden items-center gap-2 px-2 text-[13px] text-baize-400 sm:flex" title={online ? 'Connected' : 'Reconnecting'}>
-      <span className={`size-2 rounded-full ${online ? 'bg-win' : 'animate-pulse bg-flag'}`} />
-      {online ? 'Connected' : 'Reconnecting'}
+    <span className="mr-1 hidden items-center gap-2 px-2 text-[13px] text-baize-400 lg:flex" role="status">
+      <span className={`size-2 rounded-full ${dot}`} />
+      {label}
     </span>
   )
 }

@@ -7,7 +7,7 @@ const VARIANTS: Record<Variant, string> = {
   primary: 'bg-chalk-400 text-baize-950 shadow-[inset_0_-2px_0_rgb(0_0_0/0.12),0_8px_20px_-10px_rgb(242_238_227/0.35)] hover:bg-chalk-200',
   secondary: 'felt-raised text-baize-100 hover:brightness-125',
   ghost: 'text-baize-300 hover:bg-white/5 hover:text-baize-100',
-  danger: 'bg-flag text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.15)] hover:brightness-110',
+  danger: 'bg-flag-deep text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.15)] hover:brightness-110',
 }
 
 export function Button({
