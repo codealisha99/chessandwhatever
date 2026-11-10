@@ -20,19 +20,21 @@ export interface BotLevel {
   level: number
   name: string
   elo: string
+  /** what playing it feels like, in a sentence */
+  note: string
   skill: number
   go: string
 }
 
 export const BOT_LEVELS: BotLevel[] = [
-  { level: 1, name: 'Pawn', elo: '~400', skill: 0, go: 'depth 1' },
-  { level: 2, name: 'Squire', elo: '~800', skill: 2, go: 'depth 2' },
-  { level: 3, name: 'Knight', elo: '~1100', skill: 5, go: 'depth 4' },
-  { level: 4, name: 'Bishop', elo: '~1400', skill: 8, go: 'depth 6' },
-  { level: 5, name: 'Rook', elo: '~1700', skill: 11, go: 'depth 8' },
-  { level: 6, name: 'Queen', elo: '~2000', skill: 14, go: 'depth 11' },
-  { level: 7, name: 'King', elo: '~2400', skill: 18, go: 'depth 14' },
-  { level: 8, name: 'Grandmaster', elo: '2800+', skill: 20, go: 'movetime 1500' },
+  { level: 1, name: 'Pawn', elo: '~400', note: 'Moves almost at random. Good for learning how the pieces move.', skill: 0, go: 'depth 1' },
+  { level: 2, name: 'Squire', elo: '~800', note: 'Looks one move ahead and leaves pieces hanging.', skill: 2, go: 'depth 2' },
+  { level: 3, name: 'Knight', elo: '~1100', note: 'Plays sensible openings, then misses tactics.', skill: 5, go: 'depth 4' },
+  { level: 4, name: 'Bishop', elo: '~1400', note: 'Punishes loose pieces. A fair club opponent.', skill: 8, go: 'depth 6' },
+  { level: 5, name: 'Rook', elo: '~1700', note: 'Solid and patient. You will need a plan.', skill: 11, go: 'depth 8' },
+  { level: 6, name: 'Queen', elo: '~2000', note: 'Sharp tactics and few mistakes to feed on.', skill: 14, go: 'depth 11' },
+  { level: 7, name: 'King', elo: '~2400', note: 'Master strength. Expect to be outcalculated.', skill: 18, go: 'depth 14' },
+  { level: 8, name: 'Grandmaster', elo: '2800+', note: 'Full engine strength. A draw is a good result.', skill: 20, go: 'movetime 1500' },
 ]
 
 export class Engine {

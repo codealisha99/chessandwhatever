@@ -153,6 +153,9 @@ function GameScreen({ game }: { game: LiveGameState }) {
 
   return (
     <div className="mx-auto max-w-7xl px-3 pb-10 pt-4 sm:px-6 lg:pt-6">
+      <h1 className="sr-only">
+        {game.white.username} against {game.black.username}, {game.tc.replace('+', ' + ')}
+      </h1>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,calc(100dvh-290px))_360px] lg:justify-center lg:gap-10">
         <div className="mx-auto w-full max-w-[min(100%,calc(100dvh-290px))] min-w-[280px]">
           {strip(top)}

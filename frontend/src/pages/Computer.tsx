@@ -1,7 +1,7 @@
 import { Chess } from 'chess.js'
 import { Bot, Flag, FlipVertical2, Lightbulb, LineChart, Play, RotateCcw, Undo2, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Board, pieceUrl, type Arrow, type BoardMove } from '../components/Board'
 import { Modal } from '../components/Modal'
 import { MoveList } from '../components/MoveList'
@@ -56,21 +56,12 @@ export default function Computer() {
   return <OfflineGame key={`${game.mode}-${game.level}-${game.color}`} initial={game} onNew={() => (localStorage.removeItem(STORAGE_KEY), setGame(null))} />
 }
 
-/** What each level is like to play against, in a sentence. */
-const LEVEL_NOTES = [
-  'Moves almost at random. Good for learning how the pieces move.',
-  'Looks one move ahead and leaves pieces hanging.',
-  'Plays sensible openings, then misses tactics.',
-  'Punishes loose pieces. A fair club opponent.',
-  'Solid and patient. You will need a plan.',
-  'Sharp tactics and few mistakes to feed on.',
-  'Master strength. Expect to be outcalculated.',
-  'Full engine strength. A draw is a good result.',
-]
-
 function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
   const [mode, setMode] = useState<Mode>('bot')
-  const [level, setLevel] = useState(3)
+  // /computer?level=5 preselects a level (linked from the home page's engine ladder)
+  const [params] = useSearchParams()
+  const requested = Number(params.get('level'))
+  const [level, setLevel] = useState(requested >= 1 && requested <= BOT_LEVELS.length ? Math.floor(requested) : 3)
   const [color, setColor] = useState<Color | 'random'>('white')
   const lvl = BOT_LEVELS[level - 1]!
   const side: Color = mode === 'bot' && color === 'black' ? 'black' : 'white'
@@ -123,7 +114,7 @@ function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
                 </button>
               ))}
             </div>
-            <p className="annot mt-3 min-h-6 text-[16px] text-baize-300">{LEVEL_NOTES[level - 1]}</p>
+            <p className="annot mt-3 min-h-6 text-[16px] text-baize-300">{lvl.note}</p>
 
             <div className="mt-7 text-[13px] font-medium text-baize-400">Play as</div>
             <div className="mt-2 grid grid-cols-3 gap-2">
@@ -295,6 +286,7 @@ function OfflineGame({ initial, onNew }: { initial: Saved; onNew: () => void }) 
 
   return (
     <div className="mx-auto max-w-7xl px-3 pb-10 pt-4 sm:px-6 lg:pt-6">
+      <h1 className="sr-only">{mode === 'bot' ? `Practice game against Stockfish, ${level.name}` : 'Pass and play game'}</h1>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,calc(100dvh-250px))_340px] lg:justify-center lg:gap-10">
         <div className="mx-auto w-full max-w-[min(100%,calc(100dvh-250px))] min-w-[280px]">
           <div className="mb-3">{strip(opposite(bottom))}</div>

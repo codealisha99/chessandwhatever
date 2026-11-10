@@ -1,5 +1,5 @@
 import { Chess, type Square } from 'chess.js'
-import type { Color, GameResult } from './types'
+import type { Color, GameResult, GameSummary } from './types'
 
 export interface Ply {
   san: string
@@ -104,4 +104,16 @@ export function downloadPgn(pgn: string, name: string) {
   const a = Object.assign(document.createElement('a'), { href: url, download: `${name}.pgn` })
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/** Rating after each game, oldest first (games arrive newest first). */
+export const ratingHistory = (games: GameSummary[], userId: string) =>
+  games
+    .slice()
+    .reverse()
+    .map((g) => (g.whiteId === userId ? g.whiteRating + g.whiteDelta : g.blackRating + g.blackDelta))
+
+export function outcomeOf(g: GameSummary, userId: string): 'win' | 'loss' | 'draw' {
+  if (g.result === '1/2-1/2') return 'draw'
+  return (g.result === '1-0') === (g.whiteId === userId) ? 'win' : 'loss'
 }
