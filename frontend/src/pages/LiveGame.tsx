@@ -133,7 +133,7 @@ function GameScreen({ game }: { game: LiveGameState }) {
       : undefined
     const clockMs = game.clocks[color]
     return (
-      <div className={isTop ? 'mb-3' : 'mt-3'}>
+      <div className={isTop ? 'mb-4' : 'mt-4'}>
         <PlayerStrip
           name={p.username}
           rating={p.rating}
@@ -153,8 +153,8 @@ function GameScreen({ game }: { game: LiveGameState }) {
 
   return (
     <div className="mx-auto max-w-7xl px-3 pb-10 pt-4 sm:px-6 lg:pt-6">
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="mx-auto w-full max-w-[min(100%,calc(100dvh-270px))] min-w-[280px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,calc(100dvh-290px))_360px] lg:justify-center lg:gap-10">
+        <div className="mx-auto w-full max-w-[min(100%,calc(100dvh-290px))] min-w-[280px]">
           {strip(top)}
           <div className="relative">
             <Board
@@ -166,8 +166,8 @@ function GameScreen({ game }: { game: LiveGameState }) {
             />
             {firstMoveLeft !== null && you && turn === you && (
               <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
-                <div className="animate-pop rounded-2xl bg-baize-950/85 px-5 py-3 text-center shadow-2xl ring-1 ring-chalk-400/40 backdrop-blur">
-                  <div className="text-sm font-semibold text-chalk-300">Your move</div>
+                <div className="animate-pop rounded-2xl bg-baize-950/85 px-5 py-3 text-center shadow-2xl ring-1 ring-brass-500/50 backdrop-blur">
+                  <div className="text-sm font-semibold text-brass-300">Your move</div>
                   <div className="tabular text-xs text-baize-300">Game aborts in {firstMoveLeft}s</div>
                 </div>
               </div>

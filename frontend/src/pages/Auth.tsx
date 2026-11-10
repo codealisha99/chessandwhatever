@@ -92,7 +92,7 @@ function Field({ label, value, onChange, type = 'text', autoComplete, autoFocus 
         autoComplete={autoComplete}
         autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
-        className="h-12 w-full rounded-xl bg-baize-950/50 px-4 text-[16px] shadow-[inset_0_2px_4px_rgb(0_0_0/0.3)] transition placeholder:text-baize-500 focus:outline-none focus:ring-2 focus:ring-chalk-400/60"
+        className="felt-sunk h-12 w-full rounded-xl px-4 text-[16px] transition placeholder:text-baize-500 focus:outline-none focus:ring-2 focus:ring-brass-400/70"
       />
     </label>
   )

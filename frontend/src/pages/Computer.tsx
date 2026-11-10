@@ -56,41 +56,56 @@ export default function Computer() {
   return <OfflineGame key={`${game.mode}-${game.level}-${game.color}`} initial={game} onNew={() => (localStorage.removeItem(STORAGE_KEY), setGame(null))} />
 }
 
+/** What each level is like to play against, in a sentence. */
+const LEVEL_NOTES = [
+  'Moves almost at random. Good for learning how the pieces move.',
+  'Looks one move ahead and leaves pieces hanging.',
+  'Plays sensible openings, then misses tactics.',
+  'Punishes loose pieces. A fair club opponent.',
+  'Solid and patient. You will need a plan.',
+  'Sharp tactics and few mistakes to feed on.',
+  'Master strength. Expect to be outcalculated.',
+  'Full engine strength. A draw is a good result.',
+]
+
 function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
   const [mode, setMode] = useState<Mode>('bot')
   const [level, setLevel] = useState(3)
   const [color, setColor] = useState<Color | 'random'>('white')
   const lvl = BOT_LEVELS[level - 1]!
+  const side: Color = mode === 'bot' && color === 'black' ? 'black' : 'white'
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10 sm:py-16">
+    <div className="mx-auto grid max-w-[1180px] items-center gap-x-20 gap-y-12 px-5 py-10 sm:px-8 sm:py-16 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
       <div>
-        <h1 className="display text-7xl">Practice</h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-baize-400">Unrated games against Stockfish or a friend on this screen. Take moves back, ask for a hint, and analyse afterwards.</p>
-      </div>
-      <Card className="mt-10 p-6">
-        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-baize-950/50 p-1.5">
-          {([['bot', 'vs Computer', Bot], ['local', 'Pass & play', Users]] as const).map(([m, label, Icon]) => (
+        <h1 className="display animate-rise text-[clamp(4rem,9vw,6.5rem)]">Practice</h1>
+        <p className="mt-4 max-w-md text-[16px] leading-relaxed text-baize-300">
+          Unrated games against Stockfish, or against a friend on this screen. Take moves back, ask for a hint, and analyse afterwards.
+        </p>
+
+        <div className="felt-sunk mt-10 grid grid-cols-2 gap-1.5 rounded-2xl p-1.5" role="tablist">
+          {([['bot', 'Against the computer', Bot], ['local', 'Pass and play', Users]] as const).map(([m, label, Icon]) => (
             <button
               key={m}
               type="button"
+              role="tab"
+              aria-selected={mode === m}
               onClick={() => setMode(m)}
-              className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition ${mode === m ? 'bg-baize-700 text-baize-100 shadow' : 'text-baize-400 hover:text-baize-200'}`}
+              className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition ${mode === m ? 'felt-raised text-baize-100' : 'text-baize-400 hover:text-baize-200'}`}
             >
               <Icon className="size-4" /> {label}
             </button>
           ))}
         </div>
 
-        {mode === 'bot' && (
+        {mode === 'bot' ? (
           <>
-            <div className="mt-6 flex items-end justify-between">
+            <div className="mt-8 flex items-end justify-between gap-4">
               <div>
-                <div className="text-sm font-medium text-baize-400">Strength</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {lvl.name} <span className="text-base font-medium text-baize-400">level {lvl.level}</span>
+                <div className="text-[13px] font-medium text-baize-400">Strength</div>
+                <div className="mt-1 text-[1.7rem] font-bold leading-tight">
+                  {lvl.name} <span className="digits text-lg font-semibold text-baize-500">{lvl.elo}</span>
                 </div>
               </div>
-              <div className="tabular rounded-lg bg-chalk-400/10 px-2.5 py-1 digits text-sm font-semibold text-chalk-300">{lvl.elo}</div>
             </div>
             <div className="mt-4 grid grid-cols-8 gap-1.5">
               {BOT_LEVELS.map((l) => (
@@ -98,43 +113,59 @@ function SetupScreen({ onStart }: { onStart: (s: Setup) => void }) {
                   key={l.level}
                   type="button"
                   aria-label={`Level ${l.level}: ${l.name}`}
+                  aria-pressed={l.level === level}
                   onClick={() => setLevel(l.level)}
-                  className={`h-10 rounded-lg digits text-sm font-bold transition ${
-                    l.level === level ? 'bg-chalk-400 text-baize-950' : l.level < level ? 'bg-baize-600 text-baize-200' : 'bg-baize-800 text-baize-400 hover:bg-baize-700'
+                  className={`digits h-10 rounded-lg text-[15px] transition ${
+                    l.level === level ? 'bg-chalk-400 text-baize-950 shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)]' : l.level < level ? 'bg-baize-600 text-baize-200' : 'felt-raised text-baize-400 hover:text-baize-100'
                   }`}
                 >
                   {l.level}
                 </button>
               ))}
             </div>
-            <div className="mt-6 text-sm font-medium text-baize-400">Play as</div>
+            <p className="annot mt-3 min-h-6 text-[16px] text-baize-300">{LEVEL_NOTES[level - 1]}</p>
+
+            <div className="mt-7 text-[13px] font-medium text-baize-400">Play as</div>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {(['white', 'random', 'black'] as const).map((c) => (
                 <button
                   key={c}
                   type="button"
+                  aria-pressed={color === c}
                   onClick={() => setColor(c)}
-                  className={`flex h-14 items-center justify-center gap-2 rounded-xl text-sm font-semibold capitalize transition ${
-                    color === c ? 'bg-baize-700 ring-2 ring-chalk-400' : 'bg-baize-800 text-baize-300 hover:bg-baize-700'
+                  className={`flex h-12 items-center justify-center gap-2 rounded-xl text-sm font-semibold capitalize transition ${
+                    color === c ? 'felt-raised text-baize-100 ring-2 ring-chalk-400' : 'felt-raised text-baize-400 hover:text-baize-100'
                   }`}
                 >
-                  {c !== 'random' && <img src={pieceUrl(c === 'white' ? 'wK' : 'bK')} alt="" className="size-7" />}
+                  {c !== 'random' && <img src={pieceUrl(c === 'white' ? 'wK' : 'bK')} alt="" className="size-6" />}
                   {c}
                 </button>
               ))}
             </div>
           </>
+        ) : (
+          <p className="annot mt-8 text-[16px] leading-relaxed text-baize-300">Two players share this screen and take turns. Flip the board whenever you like.</p>
         )}
 
         <Button
           variant="primary"
           size="lg"
-          className="mt-7 w-full"
+          className="mt-9 w-full"
           onClick={() => onStart({ mode, level, color: color === 'random' ? (Math.random() < 0.5 ? 'white' : 'black') : color })}
         >
           <Play className="size-5" /> Start game
         </Button>
-      </Card>
+      </div>
+
+      <figure className="mx-auto w-full max-w-[560px] animate-rise [animation-delay:120ms] max-lg:hidden">
+        <div className="pointer-events-none">
+          <Board fen={START_FEN} orientation={side} movable={null} />
+        </div>
+        <figcaption className="mt-5 flex items-center justify-between text-[13px] text-baize-400">
+          <span>{mode === 'bot' ? `You play ${color === 'random' ? 'a random colour' : color}` : 'White moves first'}</span>
+          <span>{mode === 'bot' ? `Stockfish 19, level ${lvl.level}` : 'Unrated'}</span>
+        </figcaption>
+      </figure>
     </div>
   )
 }
@@ -264,8 +295,8 @@ function OfflineGame({ initial, onNew }: { initial: Saved; onNew: () => void }) 
 
   return (
     <div className="mx-auto max-w-7xl px-3 pb-10 pt-4 sm:px-6 lg:pt-6">
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="mx-auto w-full max-w-[min(100%,calc(100dvh-235px))] min-w-[280px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,calc(100dvh-250px))_340px] lg:justify-center lg:gap-10">
+        <div className="mx-auto w-full max-w-[min(100%,calc(100dvh-250px))] min-w-[280px]">
           <div className="mb-3">{strip(opposite(bottom))}</div>
           <div className="relative">
             <Board
@@ -292,7 +323,7 @@ function OfflineGame({ initial, onNew }: { initial: Saved; onNew: () => void }) 
                 {mode === 'bot' ? <Bot className="size-4 text-chalk-400" /> : <Users className="size-4 text-chalk-400" />}
                 {mode === 'bot' ? `Stockfish level ${level.level}` : 'Pass & play'}
               </div>
-              <div className="text-xs text-baize-400">{mode === 'bot' ? `${level.name}, about ${level.elo} rating, unrated` : 'Two players, one board'}</div>
+              <div className="text-xs text-baize-400">{mode === 'bot' ? `${level.name}, plays at ${level.elo.replace("~", "about ")}. Unrated.` : 'Two players, one board'}</div>
             </div>
             <button type="button" title="Flip board" aria-label="Flip board" onClick={() => setFlipped((f) => !f)} className="flex size-8 items-center justify-center rounded-lg text-baize-400 hover:bg-white/5 hover:text-baize-100">
               <FlipVertical2 className="size-4" />

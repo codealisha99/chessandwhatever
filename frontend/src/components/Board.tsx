@@ -34,8 +34,7 @@ interface TrackedPiece {
 
 const FILES = 'abcdefgh'
 const PIECE_NAMES: Record<string, string> = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' }
-export const pieceUrl = (code: string) =>
-  `/pieces/${code[0] === 'w' ? 'white' : 'black'}-${PIECE_NAMES[code[1]!.toLowerCase()]}.svg`
+export const pieceUrl = (code: string) => `/pieces/${code[0] === 'w' ? 'white' : 'black'}-${PIECE_NAMES[code[1]!.toLowerCase()]}.svg`
 
 function toXY(sq: string, orientation: Color): [number, number] {
   const f = FILES.indexOf(sq[0]!)
@@ -193,8 +192,7 @@ export function Board({ fen, orientation, movable, lastMove, arrows = [], onMove
   }
 
   const hoverSq = drag ? fromXY(Math.floor(drag.x), Math.floor(drag.y), orientation) : null
-  const highlight = (sq: string) =>
-    sq === selected ? theme.lastMove : lastMove && (sq === lastMove.from || sq === lastMove.to) ? theme.lastMove : null
+  const highlight = (sq: string) => (sq === selected ? theme.lastMove : lastMove && (sq === lastMove.from || sq === lastMove.to) ? theme.lastMove : null)
 
   const squares = []
   for (let y = 0; y < 8; y++) {
@@ -214,92 +212,107 @@ export function Board({ fen, orientation, movable, lastMove, arrows = [], onMove
           {sq === hoverSq && target !== undefined && <div className="absolute inset-0 ring-4 ring-inset ring-white/60" />}
           {settings.showLegalMoves && target === false && <div className="move-dot absolute inset-0" />}
           {settings.showLegalMoves && target === true && <div className="capture-ring absolute inset-0" />}
-          {settings.coordinates && x === 0 && (
-            <span className="absolute left-[4%] top-[3%] text-[clamp(8px,1.5vw,12px)] font-semibold" style={{ color: light ? theme.dark : theme.light }}>
-              {sq[1]}
-            </span>
-          )}
-          {settings.coordinates && y === 7 && (
-            <span className="absolute bottom-[2%] right-[5%] text-[clamp(8px,1.5vw,12px)] font-semibold" style={{ color: light ? theme.dark : theme.light }}>
-              {sq[0]}
-            </span>
-          )}
         </div>,
       )
     }
   }
 
+  const ranks = orientation === 'white' ? '87654321' : '12345678'
+  const files = orientation === 'white' ? 'abcdefgh' : 'hgfedcba'
+
   return (
-    <div
-      ref={boardRef}
-      className="board"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={() => setDrag(null)}
-      onContextMenu={(e) => e.preventDefault()}
-      role="grid"
-      aria-label="Chess board"
-    >
-      {squares}
-      {pieces.map((p) => {
-        const dragging = drag?.from === p.sq
-        const [x, y] = toXY(p.sq, orientation)
-        const tx = dragging ? drag.x - 0.5 : x
-        const ty = dragging ? drag.y - 0.5 : y
-        const animate = settings.animate && !dragging && droppedRef.current !== p.sq
-        return (
-          <div
-            key={p.id}
-            className={`board-piece ${animate ? 'animate' : ''} ${dragging ? 'dragging' : ''}`}
-            style={{ transform: `translate(${tx * 100}%, ${ty * 100}%)`, backgroundImage: `url(${pieceUrl(p.code)})`, cursor: canMove ? 'grab' : 'default' }}
-          />
-        )
-      })}
-      {arrows.length > 0 && (
-        <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 8 8">
-          <defs>
-            <marker id="arrowhead" markerWidth="3" markerHeight="3" refX="1.6" refY="1.5" orient="auto" markerUnits="strokeWidth">
-              <path d="M0,0 L3,1.5 L0,3 z" fill="context-stroke" />
-            </marker>
-          </defs>
-          {arrows.map((a, i) => {
-            const [x1, y1] = toXY(a.from, orientation)
-            const [x2, y2] = toXY(a.to, orientation)
-            const len = Math.hypot(x2 - x1, y2 - y1)
-            const shorten = 0.35 / len
+    <div className="board-shell">
+      <div className="board-frame">
+        {settings.coordinates && (
+          <>
+            <div className="board-coords ranks" aria-hidden>
+              {[...ranks].map((r) => (
+                <span key={r}>{r}</span>
+              ))}
+            </div>
+            <div className="board-coords files" aria-hidden>
+              {[...files].map((f) => (
+                <span key={f}>{f}</span>
+              ))}
+            </div>
+          </>
+        )}
+        <div
+          ref={boardRef}
+          className={`board ${settings.boardTheme === 'walnut' ? 'grain' : ''}`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={() => setDrag(null)}
+          onContextMenu={(e) => e.preventDefault()}
+          role="grid"
+          aria-label="Chess board"
+        >
+          {squares}
+          {pieces.map((p) => {
+            const dragging = drag?.from === p.sq
+            const [x, y] = toXY(p.sq, orientation)
+            const tx = dragging ? drag.x - 0.5 : x
+            const ty = dragging ? drag.y - 0.5 : y
+            const animate = settings.animate && !dragging && droppedRef.current !== p.sq
             return (
-              <line
-                key={i}
-                x1={x1 + 0.5}
-                y1={y1 + 0.5}
-                x2={x2 + 0.5 - (x2 - x1) * shorten}
-                y2={y2 + 0.5 - (y2 - y1) * shorten}
-                stroke={a.color ?? 'rgb(232 182 90 / 0.85)'}
-                strokeWidth={0.16}
-                strokeLinecap="round"
-                markerEnd="url(#arrowhead)"
+              <div
+                key={p.id}
+                className={`board-piece ${animate ? 'animate' : ''} ${dragging ? 'dragging' : ''}`}
+                style={{
+                  transform: `translate(${tx * 100}%, ${ty * 100}%)`,
+                  backgroundImage: `url(${pieceUrl(p.code)})`,
+                  cursor: canMove ? 'grab' : 'default',
+                }}
               />
             )
           })}
-        </svg>
-      )}
-      {promotion && (
-        <PromotionPicker
-          color={turn}
-          square={promotion.to}
-          orientation={orientation}
-          onPick={(p) => {
-            const { from, to } = promotion
-            setPromotion(null)
-            attempt(from, to, p)
-          }}
-          onCancel={() => {
-            setPromotion(null)
-            setSelected(null)
-          }}
-        />
-      )}
+          {arrows.length > 0 && (
+            <svg className="pointer-events-none absolute inset-0 z-[3] h-full w-full" viewBox="0 0 8 8">
+              <defs>
+                <marker id="arrowhead" markerWidth="3" markerHeight="3" refX="1.6" refY="1.5" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L3,1.5 L0,3 z" fill="context-stroke" />
+                </marker>
+              </defs>
+              {arrows.map((a, i) => {
+                const [x1, y1] = toXY(a.from, orientation)
+                const [x2, y2] = toXY(a.to, orientation)
+                const len = Math.hypot(x2 - x1, y2 - y1)
+                const shorten = 0.35 / len
+                return (
+                  <line
+                    key={i}
+                    x1={x1 + 0.5}
+                    y1={y1 + 0.5}
+                    x2={x2 + 0.5 - (x2 - x1) * shorten}
+                    y2={y2 + 0.5 - (y2 - y1) * shorten}
+                    stroke={a.color ?? 'rgb(232 182 90 / 0.85)'}
+                    strokeWidth={0.16}
+                    strokeLinecap="round"
+                    markerEnd="url(#arrowhead)"
+                  />
+                )
+              })}
+            </svg>
+          )}
+          {promotion && (
+            <PromotionPicker
+              color={turn}
+              square={promotion.to}
+              orientation={orientation}
+              onPick={(p) => {
+                const { from, to } = promotion
+                setPromotion(null)
+                attempt(from, to, p)
+              }}
+              onCancel={() => {
+                setPromotion(null)
+                setSelected(null)
+              }}
+            />
+          )}
+        </div>
+      </div>
     </div>
   )
 }

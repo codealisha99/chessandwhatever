@@ -4,8 +4,8 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-chalk-400 text-baize-950 shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)] hover:bg-chalk-200',
-  secondary: 'bg-baize-700/70 text-baize-100 hover:bg-baize-700',
+  primary: 'bg-chalk-400 text-baize-950 shadow-[inset_0_-2px_0_rgb(0_0_0/0.12),0_8px_20px_-10px_rgb(242_238_227/0.35)] hover:bg-chalk-200',
+  secondary: 'felt-raised text-baize-100 hover:brightness-125',
   ghost: 'text-baize-300 hover:bg-white/5 hover:text-baize-100',
   danger: 'bg-flag text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.15)] hover:brightness-110',
 }
@@ -35,7 +35,11 @@ export function Button({
 
 /** A raised panel of felt. Use sparingly — most content sits directly on the table. */
 export function Card({ className = '', children }: { className?: string; children: ReactNode }) {
-  return <div className={`rounded-2xl bg-baize-850/90 shadow-[0_1px_0_rgb(255_255_255/0.04)_inset,0_24px_48px_-32px_rgb(0_0_0/0.7)] ${className}`}>{children}</div>
+  return (
+    <div className={`rounded-2xl bg-baize-850/90 shadow-[inset_0_1px_0_rgb(255_255_255/0.06),inset_0_0_0_1px_rgb(255_255_255/0.04),0_30px_60px_-36px_rgb(0_0_0/0.85)] ${className}`}>
+      {children}
+    </div>
+  )
 }
 
 export function Spinner({ className = '' }: { className?: string }) {
@@ -48,7 +52,7 @@ export function Avatar({ name, size = 36, online }: { name: string; size?: numbe
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <div
-        className="digits flex h-full w-full items-center justify-center rounded-[28%] bg-baize-700 text-baize-200 shadow-[inset_0_1px_0_rgb(255_255_255/0.08)]"
+        className="digits flex h-full w-full items-center justify-center rounded-[28%] bg-gradient-to-b from-baize-600 to-baize-700 text-baize-100 shadow-[inset_0_1px_0_rgb(255_255_255/0.1),0_2px_6px_-2px_rgb(0_0_0/0.5)]"
         style={{ fontSize: size * 0.5 }}
       >
         {letter}

@@ -2,8 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { setSoundEnabled } from '../lib/sound'
 
 export const BOARD_THEMES = {
+  walnut: { name: 'Walnut', light: '#e9d3ad', dark: '#a5764c', lastMove: 'rgb(255 214 110 / 0.48)' },
   tournament: { name: 'Tournament', light: '#ebe8d2', dark: '#6e9160', lastMove: 'rgb(246 232 110 / 0.5)' },
-  walnut: { name: 'Walnut', light: '#ecd6b0', dark: '#a87a52', lastMove: 'rgb(246 216 120 / 0.5)' },
   slate: { name: 'Slate', light: '#dfe3e8', dark: '#7d8fa3', lastMove: 'rgb(155 199 255 / 0.5)' },
   midnight: { name: 'Midnight', light: '#c3c9d6', dark: '#4b5675', lastMove: 'rgb(140 170 255 / 0.45)' },
   coral: { name: 'Coral', light: '#f3e1d4', dark: '#d07e6a', lastMove: 'rgb(255 214 120 / 0.55)' },
@@ -23,7 +23,7 @@ export interface Settings {
 }
 
 const DEFAULTS: Settings = {
-  boardTheme: 'tournament',
+  boardTheme: 'walnut',
   sound: true,
   coordinates: true,
   showLegalMoves: true,

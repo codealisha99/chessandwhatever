@@ -3,7 +3,7 @@ import { Check, Copy, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Board, pieceUrl } from '../components/Board'
-import { Button } from '../components/ui'
+import { Button, Card } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useOnline } from '../context/OnlineContext'
 import { api } from '../lib/api'
@@ -90,14 +90,14 @@ export default function Home() {
               : "Pick a clock and you'll be paired with the next player waiting for it. No sign-up needed: you get a guest account and a 1200 rating on the spot."}
           </p>
 
-          <div className="mt-12 space-y-5">
+          <div className="mt-12 space-y-6">
             {CATEGORIES.map((cat) => (
               <div key={cat} className="grid gap-3 sm:grid-cols-[9rem_1fr] sm:items-center">
                 <div>
                   <div className="text-[15px] font-semibold text-baize-200">{cat}</div>
                   <div className="text-[13px] text-baize-500">{CATEGORY_NOTE[cat]}</div>
                 </div>
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-x-2.5 gap-y-4 pt-1.5 sm:grid-cols-4">
                   {TIME_CONTROLS.filter((t) => t.category === cat).map((tc) => (
                     <ClockTile key={tc.id} tc={tc} searching={searching === tc.id} disabled={busy} onClick={() => quickPlay(tc.id)} />
                   ))}
@@ -106,7 +106,8 @@ export default function Home() {
             ))}
           </div>
 
-          <p className="mt-6 h-5 text-[13px] text-baize-500" aria-live="polite">
+          <p className="mt-7 flex h-5 items-center gap-2 text-[13px] text-baize-400" aria-live="polite">
+            {(searching || !!stats?.online) && <span className={`size-1.5 rounded-full bg-brass-500 ${searching ? 'animate-pulse' : ''}`} />}
             {searching
               ? 'Looking for an opponent. Tap the clock again to stop.'
               : stats?.online
@@ -118,14 +119,14 @@ export default function Home() {
         <OperaGame />
       </section>
 
-      <section className="mt-24 grid gap-12 border-t border-white/[0.07] pt-12 lg:grid-cols-3 lg:gap-10">
+      <section className="mt-24 grid items-start gap-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-14">
         <FriendInvite room={room} busy={busy} onCreate={createRoom} onCancel={() => send({ type: 'cancel_room' })} />
         <div>
           <h2 className="text-xl font-semibold">Practice against Stockfish</h2>
           <p className="mt-2 max-w-sm text-[15px] leading-relaxed text-baize-400">
             Eight strengths, from a beginner who hangs pieces to full engine strength. Take moves back, ask for a hint, and analyse the game afterwards.
           </p>
-          <Link to="/computer" className="mt-5 inline-flex h-10 items-center rounded-[10px] bg-baize-700/70 px-4 text-sm font-semibold transition-colors hover:bg-baize-700">
+          <Link to="/computer" className="felt-raised mt-5 inline-flex h-10 items-center rounded-[10px] px-4 text-sm font-semibold transition hover:brightness-125">
             Set up a practice game
           </Link>
         </div>
@@ -152,20 +153,19 @@ function ClockTile({ tc, searching, disabled, onClick }: { tc: TimeControlOption
       onClick={onClick}
       aria-pressed={searching}
       aria-label={searching ? `Searching for a ${tc.label} game, select to cancel` : `Play ${base} minutes plus ${inc} seconds`}
-      className={`group relative flex h-[74px] items-center justify-between rounded-[14px] px-4 text-left transition-[background-color,box-shadow,transform] duration-150 active:translate-y-px ${
-        searching
-          ? 'bg-chalk-400 text-baize-950 shadow-[inset_0_-3px_0_rgb(0_0_0/0.1)]'
-          : 'bg-baize-850 text-baize-100 shadow-[inset_0_1px_0_rgb(255_255_255/0.05)] hover:bg-baize-700'
+      className={`clock-tile group relative flex h-[80px] items-center justify-between rounded-[14px] px-4 text-left transition-[background-color,box-shadow,transform] duration-150 active:translate-y-px ${
+        searching ? 'bg-chalk-400 text-baize-950 shadow-[inset_0_-3px_0_rgb(0_0_0/0.1),0_0_0_1px_var(--color-brass-500),0_12px_30px_-12px_rgb(214_180_122/0.45)]' : 'felt-raised text-baize-100 hover:brightness-125'
       }`}
     >
-      <span className="digits flex items-baseline gap-1 text-[2.1rem] leading-none">
+      <span className="plunger" aria-hidden />
+      <span className="digits flex items-baseline gap-1 text-[2.2rem] leading-none">
         {base}
-        <span className={`text-[1.1rem] ${searching ? 'text-baize-700' : 'text-baize-500 group-hover:text-baize-400'}`}>+{inc}</span>
+        <span className={`text-[1.1rem] ${searching ? 'text-baize-600' : 'text-baize-500 group-hover:text-baize-400'}`}>+{inc}</span>
       </span>
       {searching ? (
-        <span className="digits flex flex-col items-end text-[13px] leading-tight">
+        <span className="digits flex flex-col items-end text-[13px] leading-tight text-baize-700">
           <span className="flex items-center gap-1.5">
-            <span className="size-1.5 animate-pulse rounded-full bg-flag" />
+            <span className="size-1.5 animate-pulse rounded-full bg-brass-500" />
             {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
           </span>
           <X className="mt-1 size-3.5 opacity-60" />
@@ -205,7 +205,7 @@ function OperaGame() {
         <Board fen={current?.fen ?? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'} orientation="white" movable={null} lastMove={current} />
       </div>
       <figcaption className="mt-6 flex items-start justify-between gap-6">
-        <span className="max-w-[17rem] text-[13px] leading-relaxed text-baize-400">
+        <span className="annot max-w-[19rem] text-[15px] leading-snug text-baize-300">
           Morphy against the Duke of Brunswick and Count Isouard, played in a box at the Paris Opera, 1858.
         </span>
         <span className="digits shrink-0 text-right text-[1.6rem] leading-none text-baize-200" aria-live="off">
@@ -247,12 +247,12 @@ function FriendInvite({
   }
 
   return (
-    <div>
+    <Card className="-mx-1 p-6 sm:p-7">
       <h2 className="text-xl font-semibold">Play a friend</h2>
       {room ? (
         <>
           <p className="mt-2 text-[15px] leading-relaxed text-baize-400">Send this link. The game starts as soon as they open it.</p>
-          <div className="mt-5 rounded-2xl bg-baize-850 p-4">
+          <div className="felt-sunk mt-5 rounded-2xl p-4">
             <div className="digits text-[2.6rem] leading-none tracking-[0.08em] text-baize-100">{room.code}</div>
             <div className="mt-2 truncate text-[13px] text-baize-500">{link}</div>
             <div className="mt-4 flex items-center gap-2">
@@ -278,7 +278,7 @@ function FriendInvite({
                 type="button"
                 onClick={() => setTc(id)}
                 aria-pressed={tc === id}
-                className={`digits h-9 rounded-lg px-3 text-[17px] transition-colors ${tc === id ? 'bg-chalk-400 text-baize-950' : 'bg-baize-850 text-baize-300 hover:bg-baize-700'}`}
+                className={`digits h-9 rounded-lg px-3 text-[17px] transition ${tc === id ? 'bg-chalk-400 text-baize-950' : 'felt-raised text-baize-300 hover:text-baize-100'}`}
               >
                 {id.replace('+', ' + ')}
               </button>
@@ -291,7 +291,7 @@ function FriendInvite({
                 type="button"
                 aria-pressed={color === c}
                 onClick={() => setColor(c)}
-                className={`flex h-10 flex-1 items-center justify-center gap-2 rounded-lg text-[13px] font-medium capitalize transition-colors ${color === c ? 'bg-baize-700 text-baize-100 ring-2 ring-chalk-400' : 'bg-baize-850 text-baize-400 hover:bg-baize-700'}`}
+                className={`felt-raised flex h-10 flex-1 items-center justify-center gap-2 rounded-lg text-[13px] font-medium capitalize transition ${color === c ? 'text-baize-100 ring-2 ring-chalk-400' : 'text-baize-400 hover:text-baize-100'}`}
               >
                 {c !== 'random' && <img src={pieceUrl(c === 'white' ? 'wK' : 'bK')} alt="" className="size-5" />}
                 {c}
@@ -313,7 +313,7 @@ function FriendInvite({
               onChange={(e) => setCode(e.target.value.replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase())}
               placeholder="Enter a code"
               aria-label="Invite code"
-              className="digits h-10 min-w-0 flex-1 rounded-[10px] bg-baize-950/50 px-3 text-[17px] tracking-[0.12em] shadow-[inset_0_2px_4px_rgb(0_0_0/0.3)] placeholder:font-sans placeholder:text-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-baize-500 focus:outline-none focus:ring-2 focus:ring-chalk-400/50"
+              className="felt-sunk digits h-10 min-w-0 flex-1 rounded-[10px] px-3 text-[17px] tracking-[0.12em] placeholder:font-sans placeholder:text-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-baize-500 focus:outline-none focus:ring-2 focus:ring-chalk-400/50"
             />
             <Button type="submit" disabled={code.length !== 6}>
               Join
@@ -321,7 +321,7 @@ function FriendInvite({
           </form>
         </>
       )}
-    </div>
+    </Card>
   )
 }
 

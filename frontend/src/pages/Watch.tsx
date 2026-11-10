@@ -28,7 +28,7 @@ export default function Watch() {
       <PageHeader title="Watch" lede="Every game in progress, strongest pairings first. Open one to follow it move by move, with both clocks live.">
         {games && (
           <span className="flex items-center gap-2 text-sm text-baize-400">
-            <span className="size-2 animate-pulse rounded-full bg-flag" /> {games.length} live
+            <span className="size-2 animate-pulse rounded-full bg-brass-500" /> {games.length} live
           </span>
         )}
       </PageHeader>

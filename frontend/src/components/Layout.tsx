@@ -71,6 +71,7 @@ export function Layout() {
                 </Link>
                 <IconButton
                   label="Sign out"
+                  className="max-sm:hidden"
                   onClick={() => {
                     logout()
                     navigate('/')
@@ -97,7 +98,19 @@ export function Layout() {
         {menuOpen && (
           <nav className="flex flex-col gap-1 border-t border-white/5 px-5 py-3 md:hidden">
             {navLinks(() => setMenuOpen(false))}
-            {!user && (
+            {user ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  logout()
+                  navigate('/')
+                }}
+                className="py-2 text-left text-[15px] font-medium text-baize-400"
+              >
+                Sign out
+              </button>
+            ) : (
               <NavLink to="/login" onClick={() => setMenuOpen(false)} className="py-2 text-[15px] font-medium text-baize-400">
                 Sign in
               </NavLink>
@@ -110,8 +123,24 @@ export function Layout() {
         <Outlet />
       </main>
 
-      <footer className="mx-auto w-full max-w-[1320px] px-5 py-10 text-[13px] text-baize-500 sm:px-8">
-        Gambit is free and open. Engine: Stockfish 19. Pieces: cburnett.
+      <footer className="mt-16 border-t border-white/[0.06]">
+        <div className="mx-auto flex w-full max-w-[1320px] flex-wrap items-end justify-between gap-6 px-5 py-10 sm:px-8">
+          <div>
+            <Logo className="text-[1.15rem] text-baize-300" />
+            <p className="annot mt-2 text-[15px] text-baize-500">Free to play, no ads. Every move checked by the server.</p>
+          </div>
+          <nav className="flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-baize-400">
+            {NAV.map(({ to, label }) => (
+              <Link key={to} to={to} className="hover:text-baize-100">
+                {label}
+              </Link>
+            ))}
+            <Link to="/analysis" className="hover:text-baize-100">
+              Analysis board
+            </Link>
+            <span className="text-baize-500">Engine: Stockfish 19. Pieces: cburnett.</span>
+          </nav>
+        </div>
       </footer>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />

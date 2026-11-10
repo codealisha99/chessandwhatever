@@ -203,8 +203,8 @@ function Analysis({ moves: original, white, black, title, subtitle, result, pgn,
 
   return (
     <div className="mx-auto max-w-7xl px-3 pb-10 pt-4 sm:px-6 lg:pt-6">
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="mx-auto w-full max-w-[min(100%,calc(100dvh-235px))] min-w-[280px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,calc(100dvh-210px))_360px] lg:justify-center lg:gap-10">
+        <div className="mx-auto w-full max-w-[min(100%,calc(100dvh-250px))] min-w-[280px]">
           <div className="mb-3">{strip(opposite(bottom))}</div>
           <div className="flex gap-2.5">
             {engineOn && <EvalBar line={finalLine ?? evalLine} orientation={bottom} />}
