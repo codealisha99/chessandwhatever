@@ -13,6 +13,7 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const PORTS = [18101, 18102];
 const LEASE_MS = 1500;
 const STARTUP_MS = 60_000;
+const ALLOWED_ORIGIN = "https://app.example";
 
 let redisUp = false;
 try {
@@ -29,7 +30,7 @@ const procs = new Map<number, ChildProcess>();
 function startServer(port: number): Promise<void> {
   const child = spawn(process.execPath, ["src/index.ts"], {
     cwd: new URL("..", import.meta.url).pathname,
-    env: { ...process.env, PORT: String(port), DATABASE_URL, REDIS_URL, REDIS_PREFIX: PREFIX, LEASE_MS: String(LEASE_MS), HEARTBEAT_MS: "300", NODE_NO_WARNINGS: "1" },
+    env: { ...process.env, PORT: String(port), DATABASE_URL, REDIS_URL, REDIS_PREFIX: PREFIX, CORS_ORIGINS: ALLOWED_ORIGIN, LEASE_MS: String(LEASE_MS), HEARTBEAT_MS: "300", NODE_NO_WARNINGS: "1" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   procs.set(port, child);
@@ -102,6 +103,19 @@ after(async () => {
   const keys = await r.keys(`${PREFIX}*`);
   if (keys.length) await r.del(...keys);
   await r.quit();
+});
+
+test("CORS: only the configured frontend origin may call the API cross-origin", { skip: (!redisUp && "Redis not reachable") || (!DATABASE_URL && "DATABASE_URL not set") }, async () => {
+  const preflight = (origin: string) =>
+    fetch(`http://localhost:${PORTS[0]}/api/auth/guest`, { method: "OPTIONS", headers: { Origin: origin, "Access-Control-Request-Method": "POST" } });
+  const ok = await preflight(ALLOWED_ORIGIN);
+  assert.equal(ok.status, 204);
+  assert.equal(ok.headers.get("access-control-allow-origin"), ALLOWED_ORIGIN);
+  assert.match(ok.headers.get("access-control-allow-headers") ?? "", /Authorization/);
+  const evil = await preflight("https://evil.example");
+  assert.equal(evil.headers.get("access-control-allow-origin"), null, "unlisted origins get no CORS grant");
+  const get = await fetch(`http://localhost:${PORTS[0]}/api/health`, { headers: { Origin: ALLOWED_ORIGIN } });
+  assert.equal(get.headers.get("access-control-allow-origin"), ALLOWED_ORIGIN);
 });
 
 test("players on different instances play, spectate, and survive the owner crashing", { timeout: 60_000, skip: (!redisUp && "Redis not reachable") || (!DATABASE_URL && "DATABASE_URL not set") }, async () => {

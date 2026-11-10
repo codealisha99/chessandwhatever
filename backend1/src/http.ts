@@ -139,6 +139,20 @@ export function createHttpHandler(manager: GameManager) {
     const url = new URL(req.url ?? "/", "http://localhost");
     try {
       if (url.pathname.startsWith("/api/")) {
+        const origin = req.headers.origin;
+        if (origin && config.corsOrigins.has(origin)) {
+          // bearer tokens, no cookies: allowing the origin grants nothing a page couldn't already do
+          res.setHeader("Access-Control-Allow-Origin", origin);
+          res.setHeader("Vary", "Origin");
+        }
+        if (req.method === "OPTIONS") {
+          res.writeHead(204, {
+            "Access-Control-Allow-Methods": "GET, POST",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Access-Control-Max-Age": "600",
+          });
+          return res.end();
+        }
         for (const [method, re, handler] of routes) {
           const m = re.exec(url.pathname);
           if (m && req.method === method) return await handler(req, res, m.slice(1));

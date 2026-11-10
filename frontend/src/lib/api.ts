@@ -14,11 +14,18 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * API origin. Production points straight at the game server (VITE_API_URL) instead of going through a
+ * Vercel rewrite: behind a rewrite the server only sees Vercel's IPs, which defeats per-client rate limits.
+ * Empty = same-origin (Vite dev proxy, or the server serving the SPA itself).
+ */
+const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const token = tokenStore.get()
   let res: Response
   try {
-    res = await fetch(`/api${path}`, {
+    res = await fetch(`${API_BASE}/api${path}`, {
       method: init.method ?? (init.body ? 'POST' : 'GET'),
       headers: {
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),

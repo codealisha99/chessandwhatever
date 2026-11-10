@@ -32,6 +32,12 @@ export const config = {
     if (!url) throw new Error("DATABASE_URL is not set — point it at your Neon (or any Postgres) database");
     return url;
   },
+  /**
+   * Browser origins allowed to call the API cross-origin (comma-separated), e.g. the Vercel frontend.
+   * The SPA calls Railway directly rather than through a Vercel rewrite, so Railway's edge reports
+   * the real client IP to the auth rate limiter. Empty = same-origin only.
+   */
+  corsOrigins: new Set((process.env.CORS_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean)),
   /** behind Vercel/Railway proxies the client IP arrives in X-Forwarded-For */
   trustProxy: process.env.TRUST_PROXY === "1" || isProd,
   authSecret: loadSecret(),
