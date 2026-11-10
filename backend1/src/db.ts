@@ -1,5 +1,6 @@
-import { DatabaseSync } from "node:sqlite";
+import pg from "pg";
 import { config } from "./config.ts";
+import { log } from "./logger.ts";
 
 export interface User {
   id: string;
@@ -39,22 +40,31 @@ export interface GameRecord {
   endedAt: number;
 }
 
-const db = new DatabaseSync(config.dbFile);
-db.exec(`
-  PRAGMA journal_mode = WAL;
-  PRAGMA foreign_keys = ON;
+// Neon (or any Postgres). One pool per instance; every instance shares the same database.
+const pool = new pg.Pool({
+  connectionString: config.databaseUrl,
+  max: 10,
+  idleTimeoutMillis: 30_000,
+  // Neon scales idle databases to zero; the first connection can take a few seconds to wake it
+  connectionTimeoutMillis: 20_000,
+});
+pool.on("error", (err) => log.warn(`postgres pool: ${err.message}`));
+
+const SCHEMA = `
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    username TEXT NOT NULL,
     password_hash TEXT,
-    is_guest INTEGER NOT NULL DEFAULT 0,
+    is_guest BOOLEAN NOT NULL DEFAULT FALSE,
     rating INTEGER NOT NULL DEFAULT 1200,
     games INTEGER NOT NULL DEFAULT 0,
     wins INTEGER NOT NULL DEFAULT 0,
     losses INTEGER NOT NULL DEFAULT 0,
     draws INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL
+    created_at BIGINT NOT NULL
   );
+  CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower ON users (lower(username));
+  CREATE INDEX IF NOT EXISTS users_rating ON users (rating DESC) WHERE NOT is_guest;
   CREATE TABLE IF NOT EXISTS games (
     id TEXT PRIMARY KEY,
     white_id TEXT NOT NULL REFERENCES users(id),
@@ -67,14 +77,48 @@ db.exec(`
     result TEXT NOT NULL,
     reason TEXT NOT NULL,
     pgn TEXT NOT NULL,
-    moves TEXT NOT NULL,
-    started_at INTEGER NOT NULL,
-    ended_at INTEGER NOT NULL
+    moves JSONB NOT NULL,
+    started_at BIGINT NOT NULL,
+    ended_at BIGINT NOT NULL
   );
-  CREATE INDEX IF NOT EXISTS games_white ON games(white_id, ended_at DESC);
-  CREATE INDEX IF NOT EXISTS games_black ON games(black_id, ended_at DESC);
-  CREATE INDEX IF NOT EXISTS users_rating ON users(rating DESC);
-`);
+  CREATE INDEX IF NOT EXISTS games_white ON games (white_id, ended_at DESC);
+  CREATE INDEX IF NOT EXISTS games_black ON games (black_id, ended_at DESC);
+`;
+
+const MIGRATE_ATTEMPTS = 6;
+
+/** Idempotent schema setup, retried while the database wakes up or the network settles. */
+export async function migrate(): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await migrateOnce();
+    } catch (err) {
+      if (attempt >= MIGRATE_ATTEMPTS) throw err;
+      const wait = Math.min(1000 * 2 ** attempt, 15_000);
+      log.warn(`database not ready (${(err as Error).message}), retrying in ${wait / 1000}s`, { attempt });
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+}
+
+/**
+ * The advisory lock stops several instances racing on first boot. It is transaction-scoped:
+ * a session lock leaks behind a transaction-mode pooler (Neon's pooled endpoint) and blocks the next boot forever.
+ */
+async function migrateOnce(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(727274)");
+    await client.query(SCHEMA);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 type Row = Record<string, unknown>;
 
@@ -86,7 +130,7 @@ const toUser = (r: Row): User => ({
   wins: Number(r.wins),
   losses: Number(r.losses),
   draws: Number(r.draws),
-  isGuest: Number(r.is_guest) === 1,
+  isGuest: Boolean(r.is_guest),
   createdAt: Number(r.created_at),
 });
 
@@ -104,7 +148,7 @@ const toGame = (r: Row): GameRecord => ({
   result: r.result as GameRecord["result"],
   reason: r.reason as string,
   pgn: r.pgn as string,
-  moves: JSON.parse(r.moves as string) as StoredMove[],
+  moves: r.moves as StoredMove[],
   startedAt: Number(r.started_at),
   endedAt: Number(r.ended_at),
 });
@@ -114,86 +158,87 @@ const GAME_SELECT = `
   SELECT g.*, w.username AS white_name, b.username AS black_name
   FROM games g JOIN users w ON w.id = g.white_id JOIN users b ON b.id = g.black_id`;
 
-const q = {
-  userById: db.prepare(`SELECT ${USER_COLS} FROM users WHERE id = ?`),
-  userByName: db.prepare(`SELECT ${USER_COLS} FROM users WHERE username = ?`),
-  credsByName: db.prepare(`SELECT id, password_hash FROM users WHERE username = ? AND is_guest = 0`),
-  insertUser: db.prepare(
-    `INSERT INTO users (id, username, password_hash, is_guest, created_at) VALUES (?, ?, ?, ?, ?)`,
-  ),
-  applyResult: db.prepare(`
-    UPDATE users SET rating = MAX(100, rating + ?), games = games + 1,
-      wins = wins + ?, losses = losses + ?, draws = draws + ? WHERE id = ?`),
-  insertGame: db.prepare(`
-    INSERT INTO games (id, white_id, black_id, white_rating, black_rating, white_delta, black_delta,
-      tc, result, reason, pgn, moves, started_at, ended_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
-  gameById: db.prepare(`${GAME_SELECT} WHERE g.id = ?`),
-  gamesByUser: db.prepare(
-    `${GAME_SELECT} WHERE g.white_id = ? OR g.black_id = ? ORDER BY g.ended_at DESC LIMIT ?`,
-  ),
-  leaderboard: db.prepare(
-    `SELECT ${USER_COLS} FROM users WHERE is_guest = 0 AND games > 0 ORDER BY rating DESC, wins DESC LIMIT ?`,
-  ),
-  counts: db.prepare(`SELECT (SELECT COUNT(*) FROM users WHERE is_guest = 0) AS players, (SELECT COUNT(*) FROM games) AS games`),
-};
+async function one(sql: string, params: unknown[]): Promise<Row | null> {
+  const { rows } = await pool.query(sql, params);
+  return (rows[0] as Row | undefined) ?? null;
+}
 
 export const repo = {
-  findUserById(id: string): User | null {
-    const r = q.userById.get(id) as Row | undefined;
+  async findUserById(id: string): Promise<User | null> {
+    const r = await one(`SELECT ${USER_COLS} FROM users WHERE id = $1`, [id]);
     return r ? toUser(r) : null;
   },
-  findUserByName(username: string): User | null {
-    const r = q.userByName.get(username) as Row | undefined;
+  async findUserByName(username: string): Promise<User | null> {
+    const r = await one(`SELECT ${USER_COLS} FROM users WHERE lower(username) = lower($1)`, [username]);
     return r ? toUser(r) : null;
   },
-  findCredentials(username: string): { id: string; passwordHash: string } | null {
-    const r = q.credsByName.get(username) as Row | undefined;
+  async findCredentials(username: string): Promise<{ id: string; passwordHash: string } | null> {
+    const r = await one(`SELECT id, password_hash FROM users WHERE lower(username) = lower($1) AND NOT is_guest`, [username]);
     return r ? { id: r.id as string, passwordHash: r.password_hash as string } : null;
   },
-  /** Returns null when the username is taken. */
-  createUser(id: string, username: string, passwordHash: string | null): User | null {
-    try {
-      q.insertUser.run(id, username, passwordHash, passwordHash ? 0 : 1, Date.now());
-    } catch (err) {
-      if (String(err).includes("UNIQUE")) return null;
-      throw err;
-    }
-    return repo.findUserById(id);
+  /** Returns null when the username is taken (case-insensitive). */
+  async createUser(id: string, username: string, passwordHash: string | null): Promise<User | null> {
+    const r = await one(
+      `INSERT INTO users (id, username, password_hash, is_guest, created_at) VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT DO NOTHING RETURNING ${USER_COLS}`,
+      [id, username, passwordHash, passwordHash === null, Date.now()],
+    );
+    return r ? toUser(r) : null;
   },
-  /** Saves a finished game and both rating updates atomically. */
-  saveFinishedGame(g: GameRecord): void {
+  /**
+   * Saves a finished game and both rating updates in one transaction.
+   * Idempotent: if another instance already saved this game (failover), ratings are not applied twice.
+   */
+  async saveFinishedGame(g: GameRecord): Promise<boolean> {
     const score = g.result === "1-0" ? 1 : g.result === "0-1" ? 0 : 0.5;
-    const outcome = (s: number) => [s === 1 ? 1 : 0, s === 0 ? 1 : 0, s === 0.5 ? 1 : 0] as const;
-    db.exec("BEGIN");
+    const outcome = (s: number) => [s === 1 ? 1 : 0, s === 0 ? 1 : 0, s === 0.5 ? 1 : 0];
+    const client = await pool.connect();
     try {
-      q.insertGame.run(
-        g.id, g.whiteId, g.blackId, g.whiteRating, g.blackRating, g.whiteDelta, g.blackDelta,
-        g.tc, g.result, g.reason, g.pgn, JSON.stringify(g.moves), g.startedAt, g.endedAt,
+      await client.query("BEGIN");
+      const inserted = await client.query(
+        `INSERT INTO games (id, white_id, black_id, white_rating, black_rating, white_delta, black_delta,
+           tc, result, reason, pgn, moves, started_at, ended_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         ON CONFLICT (id) DO NOTHING RETURNING id`,
+        [g.id, g.whiteId, g.blackId, g.whiteRating, g.blackRating, g.whiteDelta, g.blackDelta, g.tc, g.result, g.reason, g.pgn, JSON.stringify(g.moves), g.startedAt, g.endedAt],
       );
-      q.applyResult.run(g.whiteDelta, ...outcome(score), g.whiteId);
-      q.applyResult.run(g.blackDelta, ...outcome(1 - score), g.blackId);
-      db.exec("COMMIT");
+      if (inserted.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return false;
+      }
+      const apply = `UPDATE users SET rating = GREATEST(100, rating + $1), games = games + 1,
+        wins = wins + $2, losses = losses + $3, draws = draws + $4 WHERE id = $5`;
+      await client.query(apply, [g.whiteDelta, ...outcome(score), g.whiteId]);
+      await client.query(apply, [g.blackDelta, ...outcome(1 - score), g.blackId]);
+      await client.query("COMMIT");
+      return true;
     } catch (err) {
-      db.exec("ROLLBACK");
+      await client.query("ROLLBACK").catch(() => undefined);
       throw err;
+    } finally {
+      client.release();
     }
   },
-  findGame(id: string): GameRecord | null {
-    const r = q.gameById.get(id) as Row | undefined;
+  async findGame(id: string): Promise<GameRecord | null> {
+    const r = await one(`${GAME_SELECT} WHERE g.id = $1`, [id]);
     return r ? toGame(r) : null;
   },
-  gamesForUser(userId: string, limit = 30): GameRecord[] {
-    return (q.gamesByUser.all(userId, userId, limit) as Row[]).map(toGame);
+  async gamesForUser(userId: string, limit = 30): Promise<GameRecord[]> {
+    const { rows } = await pool.query(`${GAME_SELECT} WHERE g.white_id = $1 OR g.black_id = $1 ORDER BY g.ended_at DESC LIMIT $2`, [userId, limit]);
+    return (rows as Row[]).map(toGame);
   },
-  leaderboard(limit = 50): User[] {
-    return (q.leaderboard.all(limit) as Row[]).map(toUser);
+  async leaderboard(limit = 50): Promise<User[]> {
+    const { rows } = await pool.query(`SELECT ${USER_COLS} FROM users WHERE NOT is_guest AND games > 0 ORDER BY rating DESC, wins DESC LIMIT $1`, [limit]);
+    return (rows as Row[]).map(toUser);
   },
-  counts(): { players: number; games: number } {
-    const r = q.counts.get() as Row;
+  async counts(): Promise<{ players: number; games: number }> {
+    const r = (await one(`SELECT (SELECT COUNT(*) FROM users WHERE NOT is_guest) AS players, (SELECT COUNT(*) FROM games) AS games`, []))!;
     return { players: Number(r.players), games: Number(r.games) };
   },
-  close(): void {
-    db.close();
+  async ping(): Promise<void> {
+    await pool.query("SELECT 1");
+  },
+  close(): Promise<void> {
+    return pool.end();
   },
 };

@@ -4,10 +4,10 @@
   "description": "Realtime chess server",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "node --watch src/index.ts",
-    "start": "node src/index.ts",
+    "dev": "node --env-file-if-exists=.env --watch src/index.ts",
+    "start": "node --env-file-if-exists=.env src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"src/**/*.test.ts\""
+    "test": "node --env-file-if-exists=.env --test \"src/**/*.test.ts\""
   },
   "keywords": [],
   "author": "",
@@ -15,10 +15,13 @@
   "type": "module",
   "dependencies": {
     "chess.js": "^1.4.0",
+    "ioredis": "^6.0.0",
+    "pg": "^8.23.1",
     "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.2",
     "typescript": "^7.0.2"
   },

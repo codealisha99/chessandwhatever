@@ -7,6 +7,7 @@ import { config } from "./config.ts";
 import { repo, type GameRecord, type User } from "./db.ts";
 import type { GameManager } from "./GameManager.ts";
 import { log } from "./logger.ts";
+import { rateLimited } from "./redis.ts";
 
 type Json = Record<string, unknown> | unknown[];
 
@@ -21,18 +22,20 @@ class HttpError extends Error {
 const MAX_BODY = 4 * 1024;
 const AUTH_WINDOW_MS = 60_000;
 const AUTH_MAX_PER_WINDOW = 20;
-const authHits = new Map<string, { count: number; resetAt: number }>();
 
-function rateLimitAuth(req: IncomingMessage): void {
-  const ip = req.socket.remoteAddress ?? "unknown";
-  const now = Date.now();
-  const hit = authHits.get(ip);
-  if (!hit || hit.resetAt < now) {
-    authHits.set(ip, { count: 1, resetAt: now + AUTH_WINDOW_MS });
-    return;
+/** Real client IP. Behind Vercel/Railway the socket address is the proxy, so use the first X-Forwarded-For hop. */
+function clientIp(req: IncomingMessage): string {
+  const fwd = req.headers["x-forwarded-for"];
+  const first = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(",")[0]?.trim();
+  return (config.trustProxy && first) || req.socket.remoteAddress || "unknown";
+}
+
+/** Cluster-wide (Redis) limit so attempts can't be spread across instances. */
+async function rateLimitAuth(req: IncomingMessage): Promise<void> {
+  const ip = clientIp(req);
+  if (await rateLimited("auth", ip, AUTH_MAX_PER_WINDOW, AUTH_WINDOW_MS)) {
+    throw new HttpError(429, "Too many attempts. Try again in a minute.");
   }
-  hit.count++;
-  if (hit.count > AUTH_MAX_PER_WINDOW) throw new HttpError(429, "Too many attempts. Try again in a minute.");
 }
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -59,10 +62,10 @@ function send(res: ServerResponse, status: number, body: Json): void {
 
 const ok = (res: ServerResponse, data: unknown) => send(res, 200, { ok: true, data });
 
-function authUser(req: IncomingMessage): User {
+async function authUser(req: IncomingMessage): Promise<User> {
   const header = req.headers.authorization ?? "";
   const userId = verifyToken(header.startsWith("Bearer ") ? header.slice(7) : null);
-  const user = userId ? repo.findUserById(userId) : null;
+  const user = userId ? await repo.findUserById(userId) : null;
   if (!user) throw new HttpError(401, "Please sign in again.");
   return user;
 }
@@ -89,45 +92,46 @@ type Handler = (req: IncomingMessage, res: ServerResponse, params: string[]) => 
 export function createHttpHandler(manager: GameManager) {
   const routes: [string, RegExp, Handler][] = [
     ["POST", /^\/api\/auth\/signup$/, async (req, res) => {
-      rateLimitAuth(req);
+      await rateLimitAuth(req);
       const { username, password } = credentials(await readJson(req));
       if (/^guest_/i.test(username)) throw new HttpError(400, "That username is reserved.");
-      const user = repo.createUser(randomUUID(), username, await hashPassword(password));
+      const user = await repo.createUser(randomUUID(), username, await hashPassword(password));
       if (!user) throw new HttpError(409, "That username is taken.");
       ok(res, session(user));
     }],
     ["POST", /^\/api\/auth\/login$/, async (req, res) => {
-      rateLimitAuth(req);
+      await rateLimitAuth(req);
       const body = await readJson(req);
       const username = typeof body.username === "string" ? body.username.trim() : "";
       const password = typeof body.password === "string" ? body.password : "";
-      const creds = username && password ? repo.findCredentials(username) : null;
+      const creds = username && password ? await repo.findCredentials(username) : null;
       if (!creds || !(await verifyPassword(password, creds.passwordHash))) {
         throw new HttpError(401, "Wrong username or password.");
       }
-      ok(res, session(repo.findUserById(creds.id)!));
+      ok(res, session((await repo.findUserById(creds.id))!));
     }],
-    ["POST", /^\/api\/auth\/guest$/, (req, res) => {
-      rateLimitAuth(req);
+    ["POST", /^\/api\/auth\/guest$/, async (req, res) => {
+      await rateLimitAuth(req);
       for (let i = 0; i < 5; i++) {
-        const user = repo.createUser(randomUUID(), `Guest_${Math.floor(Math.random() * 1e6)}`, null);
+        const user = await repo.createUser(randomUUID(), `Guest_${Math.floor(Math.random() * 1e6)}`, null);
         if (user) return ok(res, session(user));
       }
       throw new HttpError(503, "Could not create a guest account. Try again.");
     }],
-    ["GET", /^\/api\/me$/, (req, res) => ok(res, authUser(req))],
-    ["GET", /^\/api\/stats$/, (_req, res) => ok(res, { ...manager.stats(), ...repo.counts() })],
-    ["GET", /^\/api\/leaderboard$/, (_req, res) => ok(res, repo.leaderboard(100))],
-    ["GET", /^\/api\/games\/live$/, (_req, res) => ok(res, manager.liveGames())],
-    ["GET", /^\/api\/games\/([\w-]{1,40})$/, (_req, res, [id]) => {
-      const game = repo.findGame(id!);
+    ["GET", /^\/api\/me$/, async (req, res) => ok(res, await authUser(req))],
+    ["GET", /^\/api\/health$/, async (_req, res) => ok(res, { status: "ok", instance: config.instanceId, ...(await manager.stats()) })],
+    ["GET", /^\/api\/stats$/, async (_req, res) => ok(res, { ...(await manager.stats()), ...(await repo.counts()) })],
+    ["GET", /^\/api\/leaderboard$/, async (_req, res) => ok(res, await repo.leaderboard(100))],
+    ["GET", /^\/api\/games\/live$/, async (_req, res) => ok(res, await manager.liveGames())],
+    ["GET", /^\/api\/games\/([\w-]{1,40})$/, async (_req, res, [id]) => {
+      const game = await repo.findGame(id!);
       if (!game) throw new HttpError(404, "Game not found.");
       ok(res, game);
     }],
-    ["GET", /^\/api\/users\/(\w{1,30})$/, (_req, res, [name]) => {
-      const user = repo.findUserByName(name!);
+    ["GET", /^\/api\/users\/(\w{1,30})$/, async (_req, res, [name]) => {
+      const user = await repo.findUserByName(name!);
       if (!user) throw new HttpError(404, "Player not found.");
-      ok(res, { user, online: manager.isOnline(user.id), games: repo.gamesForUser(user.id).map(gameSummary) });
+      ok(res, { user, online: await manager.isOnline(user.id), games: (await repo.gamesForUser(user.id)).map(gameSummary) });
     }],
   ];
 

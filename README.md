@@ -1,22 +1,61 @@
 # Gambit — real-time chess
 
-Multiplayer chess in the browser: rated games with server-authoritative clocks, private invite links, live spectating, rematches and chat. It also has offline play against Stockfish 19 and an analysis board with a live eval bar.
+Multiplayer chess in the browser: rated games with server-authoritative clocks, private invite links, live spectating, rematches and chat. It also has offline play against Stockfish 19 and an analysis board with a live eval bar. The server scales horizontally, with any number of instances sharing state through Redis.
 
 ```
-backend1/   Node HTTP + WebSocket server (ws, chess.js, built-in node:sqlite)
+backend1/   Node HTTP + WebSocket server (ws, chess.js, ioredis, pg)
 frontend/   React 19 + Vite + Tailwind v4 SPA
 ```
 
-No Postgres, Redis or Docker. The server stores everything in one SQLite file (`backend1/data/chess.db`).
+## Live
 
-## Run it
+| | |
+|---|---|
+| App (Vercel) | https://gambit-mocha.vercel.app |
+| Game server (Railway) | https://gambit-server-production.up.railway.app/api/health |
+| Database | Neon Postgres, project `gambit` (`main` = production, `dev` = local/tests) |
+| Redis | Railway Redis, private network |
 
-Requires **Node 23.6+**, since the server runs TypeScript directly and uses `node:sqlite`.
+```
+browser ── https ──▶ Vercel (static SPA, /api/* rewritten to Railway)
+   └────── wss ────▶ Railway gambit-server ──▶ Railway Redis (pub/sub, queues, live games)
+                                           └─▶ Neon Postgres (accounts, finished games)
+```
+
+The browser opens its WebSocket straight to Railway (`VITE_WS_URL`), because Vercel can't proxy WebSockets.
+
+### Redeploy
 
 ```bash
-npm run setup     # install backend + frontend deps
-npm run dev       # server on :8080, Vite on :5173 (proxies /api and /ws)
+cd backend1 && railway up --service gambit-server     # server (Dockerfile + railway.json)
+cd frontend && vercel deploy --prod                   # frontend (vercel.json)
 ```
+
+Railway variables: `DATABASE_URL` (Neon `main`, pooled), `REDIS_URL=${{Redis.REDIS_URL}}`, `AUTH_SECRET`, `NODE_ENV=production`.
+Vercel variable: `VITE_WS_URL=wss://gambit-server-production.up.railway.app/ws`.
+To scale the server, raise the replica count in Railway. Games are shared through Redis.
+
+## Run it locally
+
+Requires **Node 23.6+** (the server runs TypeScript directly), **Redis 6.2+** and a Postgres URL. A Neon branch works well.
+
+```bash
+redis-server &                          # or: docker run -d -p 6379:6379 redis:7-alpine
+cp backend1/.env.example backend1/.env  # set DATABASE_URL (e.g. your Neon `dev` branch)
+npm run setup                           # install backend + frontend deps
+npm run dev                             # server on :8080, Vite on :5173 (proxies /api and /ws)
+```
+
+### Run the whole cluster in Docker
+
+Redis, two app instances and a Caddy load balancer (round robin, WebSockets included):
+
+```bash
+AUTH_SECRET=$(openssl rand -hex 32) docker compose up --build
+open http://localhost:8080          # /api/health shows which instance answered
+```
+
+Scale with `docker compose up --scale app=4`. Games keep running when instances are restarted or crash.
 
 Open http://localhost:5173. To play yourself, open a second **incognito/other browser** window (each window needs its own account) and click the same time control in both.
 
@@ -30,15 +69,42 @@ AUTH_SECRET=$(openssl rand -hex 32) npm start   # http://localhost:8080
 | Env var | Default | Notes |
 |---|---|---|
 | `PORT` | `8080` | HTTP + WebSocket |
+| `REDIS_URL` | `redis://localhost:6379` | shared state, pub/sub, matchmaking |
+| `REDIS_PREFIX` | `gambit:` | key/channel namespace (lets deployments or tests share a Redis) |
 | `AUTH_SECRET` | dev: auto-generated in `data/` | **required** when `NODE_ENV=production` |
-| `DATA_DIR` | `backend1/data` | SQLite database location |
+| `DATABASE_URL` | *(required)* | Postgres / Neon connection string |
+| `TRUST_PROXY` | on in production | take the client IP from `X-Forwarded-For` (Vercel/Railway) |
 | `STATIC_DIR` | `frontend/dist` | built SPA to serve |
 | `BACKEND_URL` | `http://localhost:8080` | (frontend dev) proxy target |
 
 ```bash
-npm test          # backend rules/clock/elo tests (node:test, mocked time)
+npm test          # rules/clock/elo unit tests + a two-instance cluster test (needs Redis + DATABASE_URL; skipped without them)
 npm run typecheck
 ```
+
+## How the cluster works
+
+```
+ browser ──ws──▶ instance A ─┐            ┌─ instance B ◀──ws── browser
+                             ▼            ▼
+                    ┌──────── Redis ────────┐
+                    │ ch:user:{uid}         │  everything a user should see; each instance
+                    │                       │  forwards it to its own sockets for that user
+                    │ ch:watch:{gid}        │  spectator stream
+                    │ ch:instance:{iid}     │  player actions routed to the game's owner
+                    │ game:{gid}            │  snapshot after every change
+                    │ game:{gid}:owner      │  15s lease: who runs this game's clock
+                    │ queue:{tc}            │  matchmaking FIFO, paired by an atomic Lua script
+                    │ room:{code}, live, …  │
+                    └───────────────────────┘
+```
+
+- **One owner per game.** The instance that creates a game holds the `Game` object and its timers (flag, abandonment, first-move abort) and renews a Redis lease every 5s. Moves from players connected to other instances are forwarded to it over pub/sub.
+- **Snapshot and event in one MULTI.** After each change, the owner writes the game snapshot and publishes the event atomically, so any instance that reads the snapshot sees the state that produced the event.
+- **Failover.** If an owner crashes, a `PUBLISH` to it reaches zero subscribers, so the sender takes the game over on the spot (compare-and-swap on the lease). A sweeper also adopts any game whose lease expired. The new owner rebuilds the game from the snapshot. Clocks are stored as absolute timestamps, so they resume exactly.
+- **Rolling restarts.** On SIGTERM an instance releases its games and closes sockets with code 1012. Another instance adopts the games within one heartbeat, and clients reconnect through the load balancer.
+- **Presence** is a per-instance set plus an instance heartbeat key, so a crashed instance's users drop out automatically.
+- Auth rate limits are cluster-wide (Redis). Socket message rate limits and slow-client protection are per connection.
 
 ## Features
 
@@ -86,7 +152,7 @@ Every inbound message is validated (`backend1/src/protocol.ts`) and rate-limited
 
 ## Known limits
 
-- Single server process. In-progress games live in memory, so restarting the server ends them; finished games are persisted. Scaling out would need shared state (e.g. Redis pub/sub).
+- A command that reaches an owner in the instant before it crashes can be lost. The client notices the missing confirmation after 4s and resyncs the game.
 - Matchmaking is FIFO per time control, not rating-windowed.
 - No premoves.
 
