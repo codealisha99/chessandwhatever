@@ -1,80 +1,105 @@
 @import "tailwindcss";
 
+/*
+  Gambit — "match hall".
+  Felt-topped tournament tables, ivory clock faces, the red flag that drops when time runs out.
+  One family (Archivo) at three widths: condensed for numbers and headlines, normal for reading,
+  expanded for the wordmark.
+*/
+
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
 
-  --color-ink-950: #0c0b0a;
-  --color-ink-900: #13110f;
-  --color-ink-850: #191714;
-  --color-ink-800: #201d19;
-  --color-ink-700: #2c2823;
-  --color-ink-600: #3b362f;
-  --color-ink-500: #5a5349;
-  --color-ink-400: #8a8174;
-  --color-ink-300: #b3aa9c;
-  --color-ink-200: #d9d1c3;
-  --color-ink-100: #f1ebe0;
+  /* baize: the felt, from deepest shadow up to ivory */
+  --color-baize-950: #0e1714;
+  --color-baize-900: #14201c;
+  --color-baize-850: #192722;
+  --color-baize-800: #1f302a;
+  --color-baize-700: #283d36;
+  --color-baize-600: #355047;
+  --color-baize-500: #557066;
+  --color-baize-400: #8ca297;
+  --color-baize-300: #b4c2b9;
+  --color-baize-200: #d9dccf;
+  --color-baize-100: #f2eee3;
 
-  --color-gold-300: #f5d38f;
-  --color-gold-400: #e8b65a;
-  --color-gold-500: #d49a35;
-  --color-gold-600: #a8741d;
+  /* chalk: ivory clock faces and primary actions */
+  --color-chalk-200: #fffcf4;
+  --color-chalk-300: #f8f4ea;
+  --color-chalk-400: #f2eee3;
+  --color-chalk-500: #e1dac8;
+  --color-chalk-600: #c4bba3;
 
-  --color-win: #7fbf6a;
-  --color-loss: #e0675b;
-  --color-draw: #b3aa9c;
+  --color-flag: #e0533d;
+  --color-win: #8fd3a8;
+  --color-loss: #ee6f5a;
+  --color-draw: #b4c2b9;
 
-  --animate-fade-up: fade-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  --animate-pop: pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
-  --animate-pulse-ring: pulse-ring 1.6s ease-out infinite;
+  --animate-pop: pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  --animate-rise: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 
-  @keyframes fade-up {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: none; }
-  }
   @keyframes pop {
-    from { opacity: 0; transform: scale(0.92); }
+    from { opacity: 0; transform: scale(0.94); }
     to { opacity: 1; transform: none; }
   }
-  @keyframes pulse-ring {
-    0% { box-shadow: 0 0 0 0 rgb(232 182 90 / 0.45); }
-    100% { box-shadow: 0 0 0 18px rgb(232 182 90 / 0); }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: none; }
   }
+}
+
+@utility display {
+  font-stretch: 68%;
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.012em;
+}
+
+@utility digits {
+  font-stretch: 75%;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+}
+
+@utility wordmark {
+  font-stretch: 125%;
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
 :root {
   color-scheme: dark;
-  background: var(--color-ink-950);
-  color: var(--color-ink-100);
+  background: var(--color-baize-900);
+  color: var(--color-baize-100);
   font-family: var(--font-sans);
+  font-stretch: 100%;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
+/* felt: a faint woven grain over the table colour, lit from the top like a hall lamp */
 body {
   min-height: 100dvh;
-  background:
-    radial-gradient(1200px 600px at 85% -10%, rgb(232 182 90 / 0.07), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgb(127 191 106 / 0.04), transparent 60%),
-    var(--color-ink-950);
+  background-color: var(--color-baize-900);
+  background-image:
+    radial-gradient(120% 70% at 50% -10%, rgb(255 250 230 / 0.06), transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.9 0 0 0 0 1 0 0 0 0 0.92 0 0 0 0.055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-attachment: fixed;
 }
 
 ::selection {
-  background: rgb(232 182 90 / 0.35);
+  background: rgb(242 238 227 / 0.25);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-gold-400);
+  outline: 2px solid var(--color-chalk-400);
   outline-offset: 2px;
 }
 
-/* subtle scrollbars inside panels */
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-ink-600) transparent;
+  scrollbar-color: var(--color-baize-600) transparent;
 }
 
 .tabular {
@@ -90,12 +115,13 @@ body {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
-  border-radius: 6px;
+  border-radius: 4px;
   overflow: hidden;
   box-shadow:
-    0 0 0 1px rgb(0 0 0 / 0.5),
-    0 30px 60px -20px rgb(0 0 0 / 0.75),
-    0 12px 24px -12px rgb(0 0 0 / 0.6);
+    0 0 0 1px rgb(0 0 0 / 0.35),
+    0 0 0 7px var(--color-baize-950),
+    0 0 0 8px rgb(255 255 255 / 0.05),
+    0 36px 70px -24px rgb(0 0 0 / 0.8);
 }
 
 .board-piece {
@@ -105,26 +131,26 @@ body {
   background-size: 100% 100%;
   will-change: transform;
   pointer-events: none;
-  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.35));
+  filter: drop-shadow(0 1.5px 1px rgb(0 0 0 / 0.28));
 }
 
 .board-piece.animate {
-  transition: transform 180ms cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition: transform 170ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .board-piece.dragging {
   z-index: 20;
   transition: none;
-  filter: drop-shadow(0 10px 10px rgb(0 0 0 / 0.5));
+  filter: drop-shadow(0 12px 10px rgb(0 0 0 / 0.45));
   scale: 1.12;
 }
 
 .move-dot::after {
   content: "";
   position: absolute;
-  inset: 36%;
+  inset: 37%;
   border-radius: 9999px;
-  background: rgb(20 18 15 / 0.28);
+  background: rgb(14 23 20 / 0.3);
 }
 
 .capture-ring::after {
@@ -132,18 +158,21 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  box-shadow: inset 0 0 0 5px rgb(20 18 15 / 0.3);
+  box-shadow: inset 0 0 0 5px rgb(14 23 20 / 0.3);
 }
 
 .in-check {
-  background: radial-gradient(circle, rgb(255 60 40 / 0.9) 0%, rgb(230 40 30 / 0.5) 35%, transparent 72%);
+  background: radial-gradient(circle, rgb(238 80 55 / 0.95) 0%, rgb(224 83 61 / 0.55) 35%, transparent 72%);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .board-piece.animate {
     transition: none;
   }
-  * {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

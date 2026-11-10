@@ -1,4 +1,4 @@
-import { Crown, Eye, LogOut, Menu, Settings, Swords, Trophy, User as UserIcon, X } from 'lucide-react'
+import { LogOut, Menu, Settings, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -7,18 +7,16 @@ import { SettingsModal } from './SettingsModal'
 import { Avatar } from './ui'
 
 const NAV = [
-  { to: '/', label: 'Play', icon: Swords, end: true },
-  { to: '/watch', label: 'Watch', icon: Eye },
-  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { to: '/', label: 'Play', end: true },
+  { to: '/computer', label: 'Practice' },
+  { to: '/watch', label: 'Watch' },
+  { to: '/leaderboard', label: 'Rankings' },
 ]
 
-export function Logo() {
+export function Logo({ className = '' }: { className?: string }) {
   return (
-    <Link to="/" className="group flex items-center gap-2.5">
-      <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 text-ink-950 shadow-[0_6px_20px_-6px_rgb(232_182_90/0.7)] transition group-hover:rotate-[-6deg]">
-        <Crown className="size-5" strokeWidth={2.4} />
-      </div>
-      <span className="font-display text-[1.7rem] leading-none tracking-tight">Gambit</span>
+    <Link to="/" className={`wordmark text-[1.45rem] leading-none text-baize-100 transition-colors hover:text-chalk-200 ${className}`} aria-label="Gambit home">
+      Gambit
     </Link>
   )
 }
@@ -31,45 +29,44 @@ export function Layout() {
   const navigate = useNavigate()
 
   const navLinks = (onClick?: () => void) =>
-    NAV.map(({ to, label, icon: Icon, end }) => (
+    NAV.map(({ to, label, end }) => (
       <NavLink
         key={to}
         to={to}
         end={end}
         onClick={onClick}
         className={({ isActive }) =>
-          `flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition ${isActive ? 'bg-white/8 text-ink-100' : 'text-ink-400 hover:bg-white/4 hover:text-ink-100'}`
+          `relative py-2 text-[15px] font-medium transition-colors ${
+            isActive
+              ? 'text-baize-100 after:absolute after:inset-x-0 after:-bottom-[17px] after:h-[2px] after:bg-chalk-400 max-md:after:hidden'
+              : 'text-baize-400 hover:text-baize-100'
+          }`
         }
       >
-        <Icon className="size-4" />
         {label}
       </NavLink>
     ))
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-40 border-b border-white/5 bg-ink-950/75 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-          <div className="flex items-center gap-8">
+      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-baize-900/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between gap-6 px-5 sm:px-8">
+          <div className="flex items-center gap-10">
             <Logo />
-            <nav className="hidden items-center gap-1 md:flex">{navLinks()}</nav>
+            <nav className="hidden items-center gap-7 md:flex">{navLinks()}</nav>
           </div>
-          <div className="flex items-center gap-2">
-            {user && status !== 'online' && (
-              <span className="hidden items-center gap-2 rounded-full bg-gold-400/10 px-3 py-1 text-xs font-medium text-gold-300 sm:flex">
-                <span className="size-1.5 animate-pulse rounded-full bg-gold-400" /> Connecting…
-              </span>
-            )}
+          <div className="flex items-center gap-1.5">
+            {user && <ConnectionDot status={status} />}
             <IconButton label="Settings" onClick={() => setSettingsOpen(true)}>
               <Settings className="size-[18px]" />
             </IconButton>
             {user ? (
-              <div className="flex items-center gap-1">
-                <Link to={`/u/${user.username}`} className="flex items-center gap-2.5 rounded-xl py-1 pl-1 pr-3 transition hover:bg-white/5">
+              <>
+                <Link to={`/u/${user.username}`} className="ml-1 flex items-center gap-3 rounded-xl py-1 pl-1 pr-3 transition-colors hover:bg-white/5">
                   <Avatar name={user.username} size={32} />
                   <span className="hidden text-sm leading-tight sm:block">
-                    <span className="block font-semibold">{user.username}</span>
-                    <span className="tabular block text-xs text-ink-400">{user.rating}</span>
+                    <span className="block font-semibold text-baize-100">{user.username}</span>
+                    <span className="digits block text-[13px] text-baize-400">{user.rating}</span>
                   </span>
                 </Link>
                 <IconButton
@@ -81,13 +78,13 @@ export function Layout() {
                 >
                   <LogOut className="size-[18px]" />
                 </IconButton>
-              </div>
+              </>
             ) : (
-              <div className="hidden items-center gap-2 sm:flex">
-                <Link to="/login" className="rounded-xl px-3.5 py-2 text-sm font-medium text-ink-300 hover:text-ink-100">
+              <div className="hidden items-center gap-1 sm:flex">
+                <Link to="/login" className="rounded-lg px-3 py-2 text-sm font-medium text-baize-300 hover:text-baize-100">
                   Sign in
                 </Link>
-                <Link to="/signup" className="rounded-xl bg-ink-100 px-3.5 py-2 text-sm font-semibold text-ink-950 transition hover:bg-white">
+                <Link to="/signup" className="rounded-[10px] bg-chalk-400 px-4 py-2 text-sm font-semibold text-baize-950 transition-colors hover:bg-chalk-200">
                   Create account
                 </Link>
               </div>
@@ -98,11 +95,11 @@ export function Layout() {
           </div>
         </div>
         {menuOpen && (
-          <nav className="flex flex-col gap-1 border-t border-white/5 px-4 py-3 md:hidden">
+          <nav className="flex flex-col gap-1 border-t border-white/5 px-5 py-3 md:hidden">
             {navLinks(() => setMenuOpen(false))}
             {!user && (
-              <NavLink to="/login" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-ink-400">
-                <UserIcon className="size-4" /> Sign in
+              <NavLink to="/login" onClick={() => setMenuOpen(false)} className="py-2 text-[15px] font-medium text-baize-400">
+                Sign in
               </NavLink>
             )}
           </nav>
@@ -113,16 +110,20 @@ export function Layout() {
         <Outlet />
       </main>
 
+      <footer className="mx-auto w-full max-w-[1320px] px-5 py-10 text-[13px] text-baize-500 sm:px-8">
+        Gambit is free and open. Engine: Stockfish 19. Pieces: cburnett.
+      </footer>
+
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      <div className="pointer-events-none fixed bottom-4 left-1/2 z-[60] flex w-full max-w-sm -translate-x-1/2 flex-col gap-2 px-4" aria-live="polite">
+      <div className="pointer-events-none fixed bottom-5 left-1/2 z-[60] flex w-full max-w-sm -translate-x-1/2 flex-col gap-2 px-4" aria-live="polite">
         {toasts.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => dismiss(t.id)}
-            className={`pointer-events-auto animate-pop rounded-xl px-4 py-3 text-left text-sm font-medium shadow-2xl ring-1 backdrop-blur-xl ${
-              t.tone === 'error' ? 'bg-loss/20 text-red-100 ring-loss/40' : 'bg-ink-800/95 text-ink-100 ring-white/10'
+            className={`pointer-events-auto animate-pop rounded-xl px-4 py-3 text-left text-sm font-medium shadow-[0_20px_40px_-12px_rgb(0_0_0/0.6)] ${
+              t.tone === 'error' ? 'bg-flag text-white' : 'bg-chalk-400 text-baize-950'
             }`}
           >
             {t.text}
@@ -133,9 +134,19 @@ export function Layout() {
   )
 }
 
+function ConnectionDot({ status }: { status: string }) {
+  const online = status === 'online'
+  return (
+    <span className="mr-1 hidden items-center gap-2 px-2 text-[13px] text-baize-400 sm:flex" title={online ? 'Connected' : 'Reconnecting'}>
+      <span className={`size-2 rounded-full ${online ? 'bg-win' : 'animate-pulse bg-flag'}`} />
+      {online ? 'Connected' : 'Reconnecting'}
+    </span>
+  )
+}
+
 function IconButton({ label, onClick, children, className = '' }: { label: string; onClick: () => void; children: ReactNode; className?: string }) {
   return (
-    <button type="button" aria-label={label} title={label} onClick={onClick} className={`flex size-9 items-center justify-center rounded-xl text-ink-400 transition hover:bg-white/5 hover:text-ink-100 ${className}`}>
+    <button type="button" aria-label={label} title={label} onClick={onClick} className={`flex size-9 items-center justify-center rounded-lg text-baize-400 transition-colors hover:bg-white/5 hover:text-baize-100 ${className}`}>
       {children}
     </button>
   )

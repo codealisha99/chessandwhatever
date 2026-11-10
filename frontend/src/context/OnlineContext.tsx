@@ -37,6 +37,7 @@ interface OnlineValue {
 const OnlineContext = createContext<OnlineValue | null>(null)
 const BACKOFF_MS = [500, 1000, 2000, 4000, 8000]
 const PING_MS = 15_000
+const MOVE_CONFIRM_MS = 4000
 
 const deadline = (ms: number | null, now: number) => (ms === null ? null : now + ms)
 const withTimes = (prev: LiveGame | undefined, game: GameView, now: number): LiveGame => ({
@@ -63,6 +64,8 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   pathRef.current = location.pathname
   const gamesRef = useRef(games)
   gamesRef.current = games
+  /** highest ply the server has confirmed per game — used to detect a move lost in transit */
+  const confirmedRef = useRef<Record<string, number>>({})
 
   const notify = useCallback((text: string, tone: Toast['tone'] = 'info') => {
     const id = Date.now() + Math.random()
@@ -95,6 +98,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
         case 'game_state': {
           const game = msg.game as GameView
           const isNew = !gamesRef.current[game.id]
+          confirmedRef.current[game.id] = game.moves.length
           setGames((all) => ({ ...all, [game.id]: withTimes(all[game.id], game, now) }))
           if (game.you && game.status === 'active') {
             setQueuedFor(null)
@@ -108,6 +112,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
         case 'move': {
           const m = msg.move as WireMove
           const ply = msg.ply as number
+          if (id) confirmedRef.current[id] = Math.max(confirmedRef.current[id] ?? 0, ply)
           const g = id ? gamesRef.current[id] : undefined
           if (!g || !id) return
           if (g.moves.length === ply - 1) {
@@ -175,6 +180,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
           return
         case 'move_rejected': {
           const game = msg.game as GameView
+          confirmedRef.current[game.id] = game.moves.length
           playSound('illegal')
           if (msg.reason !== 'Illegal move') notify(String(msg.reason), 'error')
           setGames((all) => ({ ...all, [game.id]: withTimes(all[game.id], game, now) }))
@@ -254,6 +260,13 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
       }
       // optimistic: show the move immediately, server echo confirms it
       playSound(soundForSan(san))
+      const expected = g.moves.length + 1
+      setTimeout(() => {
+        // no echo (e.g. the server handling this game failed over) — fetch the truth
+        if ((confirmedRef.current[gameId] ?? 0) < expected && gamesRef.current[gameId]?.status === 'active') {
+          send({ type: 'spectate', gameId })
+        }
+      }, MOVE_CONFIRM_MS)
       const elapsed = g.clocks.ticking ? performance.now() - g.clocksAt : 0
       patchGame(gameId, (cur) => ({
         ...cur,

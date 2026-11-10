@@ -1,7 +1,7 @@
-import { CalendarDays, History, UserX } from 'lucide-react'
+import { History, UserX } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Avatar, Card, Delta, EmptyState, Spinner } from '../components/ui'
+import { Avatar, Delta, EmptyState, Spinner } from '../components/ui'
 import { api } from '../lib/api'
 import { tcCategory } from '../lib/timeControls'
 import type { GameSummary, User } from '../lib/types'
@@ -23,129 +23,117 @@ export default function Profile() {
     api<ProfileData>(`/users/${encodeURIComponent(username)}`).then(setData).catch((e: Error) => setError(e.message))
   }, [username])
 
-  if (error) return <EmptyState icon={<UserX className="size-6" />} title="Player not found">{error}</EmptyState>
-  if (!data) return <div className="flex justify-center py-24"><Spinner className="size-8" /></div>
+  if (error) return <div className="mx-auto max-w-[1000px] px-5 py-12 sm:px-8"><EmptyState icon={<UserX className="size-7" />} title="No player by that name">{error}</EmptyState></div>
+  if (!data) return <div className="mx-auto max-w-[1000px] px-5 py-24 sm:px-8"><Spinner className="size-8" /></div>
 
   const { user, online, games } = data
-  const winRate = user.games ? Math.round((user.wins / user.games) * 100) : 0
-  const ratingHistory = games
+  const history = games
     .slice()
     .reverse()
     .map((g) => (g.whiteId === user.id ? g.whiteRating + g.whiteDelta : g.blackRating + g.blackDelta))
+  const peak = history.length ? Math.max(...history, user.rating) : user.rating
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <Card className="animate-fade-up p-6 sm:p-8">
-        <div className="flex flex-wrap items-center gap-6">
-          <Avatar name={user.username} size={84} online={online} />
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate font-display text-5xl">{user.username}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-400">
-              <span className="flex items-center gap-1.5">
-                <CalendarDays className="size-4" /> Joined {new Date(user.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-              </span>
-              {user.isGuest && <span className="rounded-md bg-white/5 px-2 py-0.5 text-xs">Guest</span>}
-              <span className={online ? 'text-win' : ''}>{online ? '● Online now' : 'Offline'}</span>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs font-semibold uppercase tracking-wider text-ink-500">Rating</div>
-            <div className="tabular font-display text-6xl leading-none text-gold-300">{user.rating}</div>
+    <div className="mx-auto max-w-[1000px] px-5 py-12 sm:px-8">
+      <header className="flex flex-wrap items-end justify-between gap-8">
+        <div className="flex items-center gap-5">
+          <Avatar name={user.username} size={72} online={online} />
+          <div className="min-w-0">
+            <h1 className="display truncate text-[clamp(3rem,7vw,4.75rem)]">{user.username}</h1>
+            <p className="mt-2 text-[15px] text-baize-400">
+              {online ? <span className="text-win">Online now</span> : 'Offline'}
+              <span className="mx-2 text-baize-600">/</span>
+              {user.isGuest ? 'Guest account' : `Member since ${new Date(user.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`}
+            </p>
           </div>
         </div>
-        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          {[
-            ['Games', user.games, 'text-ink-100'],
-            ['Wins', user.wins, 'text-win'],
-            ['Draws', user.draws, 'text-draw'],
-            ['Losses', user.losses, 'text-loss'],
-            ['Win rate', `${winRate}%`, 'text-ink-100'],
-          ].map(([label, value, cls]) => (
-            <div key={label} className="rounded-2xl bg-ink-800/70 p-4 ring-1 ring-white/5">
-              <div className="text-xs font-medium text-ink-400">{label}</div>
-              <div className={`tabular mt-1 text-2xl font-bold ${cls}`}>{value}</div>
-            </div>
-          ))}
+        <div className="text-right">
+          <div className="digits text-[clamp(4rem,9vw,6.5rem)] leading-[0.85]">{user.rating}</div>
+          <div className="mt-2 text-[13px] text-baize-500">Rating, peak {peak}</div>
         </div>
-        {user.games > 0 && (
-          <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-ink-800">
-            <div className="bg-win" style={{ width: `${(user.wins / user.games) * 100}%` }} />
-            <div className="bg-draw/60" style={{ width: `${(user.draws / user.games) * 100}%` }} />
-            <div className="bg-loss" style={{ width: `${(user.losses / user.games) * 100}%` }} />
-          </div>
-        )}
-        {ratingHistory.length > 1 && <Sparkline values={ratingHistory} />}
-      </Card>
+      </header>
 
-      <h2 className="mb-4 mt-10 flex items-center gap-2 text-lg font-bold">
-        <History className="size-5 text-gold-400" /> Recent games
-      </h2>
-      <Card className="overflow-hidden">
-        {games.length === 0 ? (
-          <EmptyState icon={<History className="size-6" />} title="No games yet">
-            Rated games will show up here.
-          </EmptyState>
-        ) : (
-          games.map((g) => {
+      <dl className="mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-white/[0.06] sm:grid-cols-4">
+        {[
+          ['Games', user.games, 'text-baize-100'],
+          ['Won', user.wins, 'text-win'],
+          ['Drawn', user.draws, 'text-draw'],
+          ['Lost', user.losses, 'text-loss'],
+        ].map(([label, value, cls]) => (
+          <div key={label} className="bg-baize-900 px-5 py-4">
+            <dt className="text-[13px] text-baize-500">{label}</dt>
+            <dd className={`digits mt-1 text-[2.25rem] leading-none ${cls}`}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {history.length > 1 && <RatingChart values={history} />}
+
+      <h2 className="mb-2 mt-14 flex items-center gap-2 text-xl font-semibold">Recent games</h2>
+      {games.length === 0 ? (
+        <EmptyState icon={<History className="size-7" />} title="No rated games yet">
+          Finished rated games appear here, with a link to replay and analyse each one.
+        </EmptyState>
+      ) : (
+        <ul>
+          {games.map((g) => {
             const asWhite = g.whiteId === user.id
-            const score = g.result === '1/2-1/2' ? 'draw' : (g.result === '1-0') === asWhite ? 'win' : 'loss'
+            const outcome = g.result === '1/2-1/2' ? 'draw' : (g.result === '1-0') === asWhite ? 'win' : 'loss'
             const opp = asWhite ? { name: g.blackName, rating: g.blackRating } : { name: g.whiteName, rating: g.whiteRating }
             return (
-              <Link key={g.id} to={`/game/${g.id}`} className="flex items-center gap-4 border-b border-white/5 px-4 py-3.5 transition last:border-0 hover:bg-white/3">
-                <span
-                  className={`flex size-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${
-                    score === 'win' ? 'bg-win/15 text-win' : score === 'loss' ? 'bg-loss/15 text-loss' : 'bg-white/5 text-ink-300'
-                  }`}
-                >
-                  {score === 'win' ? 'W' : score === 'loss' ? 'L' : '½'}
-                </span>
-                <span className={`size-3 shrink-0 rounded-sm ring-1 ring-black/40 ${asWhite ? 'bg-ink-100' : 'bg-ink-950'}`} title={asWhite ? 'Played white' : 'Played black'} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold">
-                    vs {opp.name} <span className="tabular font-normal text-ink-400">({opp.rating})</span>
+              <li key={g.id}>
+                <Link to={`/game/${g.id}`} className="-mx-3 grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 rounded-xl border-b border-white/[0.05] px-3 py-3.5 transition-colors hover:bg-white/[0.03] sm:grid-cols-[2.5rem_1fr_6rem_auto]">
+                  <span
+                    className={`digits flex size-9 items-center justify-center rounded-lg text-[17px] ${
+                      outcome === 'win' ? 'bg-win/15 text-win' : outcome === 'loss' ? 'bg-loss/15 text-loss' : 'bg-white/5 text-baize-300'
+                    }`}
+                    aria-label={outcome}
+                  >
+                    {outcome === 'win' ? 'W' : outcome === 'loss' ? 'L' : '½'}
                   </span>
-                  <span className="block text-xs text-ink-400">
-                    {g.tc.replace('+', ' + ')} {tcCategory(g.tc)} · {g.reason} · {Math.ceil(g.plies / 2)} moves
+                  <span className="min-w-0">
+                    <span className="block truncate text-[15px] font-medium">
+                      <span className={`mr-2 inline-block size-2.5 rounded-full align-middle ${asWhite ? 'bg-chalk-300' : 'bg-baize-950 ring-1 ring-white/20'}`} />
+                      {opp.name} <span className="digits text-baize-500">{opp.rating}</span>
+                    </span>
+                    <span className="block text-[13px] text-baize-500">
+                      {tcCategory(g.tc)} {g.tc.replace('+', ' + ')}, {g.reason}, {Math.ceil(g.plies / 2)} moves
+                    </span>
                   </span>
-                </span>
-                <span className="tabular text-sm font-semibold">
-                  <Delta value={asWhite ? g.whiteDelta : g.blackDelta} />
-                </span>
-                <span className="hidden w-24 text-right text-xs text-ink-500 sm:block">{new Date(g.endedAt).toLocaleDateString()}</span>
-              </Link>
+                  <span className="hidden text-right text-[13px] text-baize-500 sm:block">{new Date(g.endedAt).toLocaleDateString()}</span>
+                  <span className="digits w-12 text-right text-[17px]">
+                    <Delta value={asWhite ? g.whiteDelta : g.blackDelta} />
+                  </span>
+                </Link>
+              </li>
             )
-          })
-        )}
-      </Card>
+          })}
+        </ul>
+      )}
     </div>
   )
 }
 
-function Sparkline({ values }: { values: number[] }) {
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const span = Math.max(1, max - min)
-  const W = 600
-  const H = 80
-  const pts = values.map((v, i) => `${(i / (values.length - 1)) * W},${H - ((v - min) / span) * (H - 8) - 4}`)
+function RatingChart({ values }: { values: number[] }) {
+  const min = Math.min(...values) - 10
+  const max = Math.max(...values) + 10
+  const W = 800
+  const H = 120
+  const x = (i: number) => (i / (values.length - 1)) * W
+  const y = (v: number) => H - ((v - min) / (max - min)) * H
+  const d = values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
   return (
-    <div className="mt-6">
-      <div className="mb-2 flex justify-between text-xs text-ink-500">
-        <span>Rating over last {values.length} games</span>
-        <span className="tabular">
-          {min} – {max}
-        </span>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-20 w-full" preserveAspectRatio="none" role="img" aria-label="Rating history">
-        <defs>
-          <linearGradient id="spark" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="rgb(232 182 90)" stopOpacity="0.35" />
-            <stop offset="1" stopColor="rgb(232 182 90)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <polygon points={`0,${H} ${pts.join(' ')} ${W},${H}`} fill="url(#spark)" />
-        <polyline points={pts.join(' ')} fill="none" stroke="rgb(232 182 90)" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+    <figure className="mt-10">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-32 w-full overflow-visible" preserveAspectRatio="none" role="img" aria-label={`Rating over the last ${values.length} games, from ${values[0]} to ${values.at(-1)}`}>
+        <path d={`${d} L${W},${H} L0,${H} Z`} fill="rgb(242 238 227 / 0.06)" />
+        <path d={d} fill="none" stroke="rgb(242 238 227)" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       </svg>
-    </div>
+      <figcaption className="mt-2 flex justify-between text-[13px] text-baize-500">
+        <span>Rating across the last {values.length} games</span>
+        <span className="digits">
+          {Math.min(...values)} to {Math.max(...values)}
+        </span>
+      </figcaption>
+    </figure>
   )
 }

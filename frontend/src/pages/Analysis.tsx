@@ -50,7 +50,7 @@ export function ArchivedGame() {
   if (error) {
     return (
       <EmptyState icon={<Cpu className="size-6" />} title="Game not found">
-        {error} <Link to="/" className="text-gold-300">Back to the lobby</Link>
+        {error} <Link to="/" className="text-chalk-300">Back to the lobby</Link>
       </EmptyState>
     )
   }
@@ -63,9 +63,9 @@ export function ArchivedGame() {
       clocks={game.moves.map((m) => m.clock)}
       white={{ name: game.whiteName, rating: game.whiteRating, delta: game.whiteDelta, link: true }}
       black={{ name: game.blackName, rating: game.blackRating, delta: game.blackDelta, link: true }}
-      title={`${game.tc.replace('+', ' + ')} · ${tcCategory(game.tc)} · Rated`}
+      title={`${tcCategory(game.tc)} ${game.tc.replace('+', ' + ')}, rated`}
       subtitle={new Date(game.endedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-      result={`${game.result.replace('1/2-1/2', '½–½')} · ${game.reason}`}
+      result={`${game.result.replace('1/2-1/2', '½–½')} by ${game.reason}`}
       pgn={game.pgn}
     />
   )
@@ -196,7 +196,7 @@ function Analysis({ moves: original, white, black, title, subtitle, result, pgn,
         color={c}
         captured={c === 'white' ? mat.byWhite : mat.byBlack}
         advantage={c === 'white' ? mat.balance : -mat.balance}
-        right={clock !== undefined ? <span className="tabular rounded-lg bg-ink-800 px-3 py-1.5 font-mono text-lg text-ink-300">{formatClock(clock)}</span> : undefined}
+        right={clock !== undefined ? <span className="tabular rounded-lg bg-baize-800 px-3 py-1.5 digits text-lg text-baize-300">{formatClock(clock)}</span> : undefined}
       />
     )
   }
@@ -218,9 +218,9 @@ function Analysis({ moves: original, white, black, title, subtitle, result, pgn,
         <Card className="flex max-h-[calc(100dvh-110px)] min-h-[440px] flex-col overflow-hidden lg:sticky lg:top-20">
           <div className="border-b border-white/5 px-4 py-3">
             <div className="text-sm font-semibold">{title}</div>
-            <div className="text-xs text-ink-400">
+            <div className="text-xs text-baize-400">
               {subtitle}
-              {result && ` · ${result}`}
+              {result && `. ${result}`}
             </div>
           </div>
 
@@ -230,24 +230,24 @@ function Analysis({ moves: original, white, black, title, subtitle, result, pgn,
               role="switch"
               aria-checked={engineOn}
               onClick={() => setEngineOn((o) => !o)}
-              className={`flex items-center gap-2 rounded-lg px-2 py-1 text-xs font-semibold transition ${engineOn ? 'bg-win/15 text-win' : 'bg-ink-800 text-ink-400'}`}
+              className={`flex items-center gap-2 rounded-lg px-2 py-1 text-xs font-semibold transition ${engineOn ? 'bg-win/15 text-win' : 'bg-baize-800 text-baize-400'}`}
             >
               <Cpu className="size-3.5" /> {engineOn ? 'Stockfish' : 'Engine off'}
             </button>
             {engineOn && (
               <div className="min-w-0 flex-1 text-xs">
                 {terminal ? (
-                  <span className="text-ink-400">{finalLine?.mate ? `Checkmate · ${finalLine.mate > 0 ? 'White' : 'Black'} wins` : 'Game over · draw'}</span>
+                  <span className="text-baize-400">{finalLine?.mate ? `Checkmate, ${finalLine.mate > 0 ? 'white' : 'black'} wins` : 'Game over, drawn'}</span>
                 ) : evalLine ? (
                   <div className="flex items-center gap-2">
-                    <span className="tabular font-mono font-bold text-ink-100">{formatEval(evalLine)}</span>
-                    <span className="truncate text-ink-400" title={pvSan.join(' ')}>
+                    <span className="tabular digits font-bold text-baize-100">{formatEval(evalLine)}</span>
+                    <span className="truncate text-baize-400" title={pvSan.join(' ')}>
                       {pvSan.join(' ')}
                     </span>
-                    <span className="ml-auto shrink-0 text-ink-500">d{evalLine.depth}</span>
+                    <span className="ml-auto shrink-0 text-baize-500">d{evalLine.depth}</span>
                   </div>
                 ) : (
-                  <span className="flex items-center gap-2 text-ink-400"><Spinner className="size-3" /> Analysing…</span>
+                  <span className="flex items-center gap-2 text-baize-400"><Spinner className="size-3" /> Analysing…</span>
                 )}
               </div>
             )}

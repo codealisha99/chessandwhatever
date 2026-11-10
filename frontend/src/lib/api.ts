@@ -34,7 +34,12 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   return json.data as T
 }
 
+/**
+ * WebSocket endpoint. Static hosts like Vercel can't proxy WebSockets, so production builds point
+ * straight at the game server via VITE_WS_URL (e.g. wss://gambit-server-production.up.railway.app/ws).
+ * Without it we use same-origin /ws (Vite dev proxy, or the server serving the SPA itself).
+ */
 export function wsUrl(token: string): string {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${proto}://${location.host}/ws?token=${encodeURIComponent(token)}`
+  const base = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`
+  return `${base}?token=${encodeURIComponent(token)}`
 }

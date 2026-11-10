@@ -1,4 +1,3 @@
-import { Swords } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Button, Card, Spinner } from '../components/ui'
@@ -24,25 +23,22 @@ export default function Join() {
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
-      <Card className="w-full max-w-sm animate-fade-up p-8 text-center">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-gold-400/15 text-gold-300">
-          <Swords className="size-7" />
-        </div>
-        <h1 className="mt-5 font-display text-4xl">You've been challenged</h1>
-        <p className="mt-2 text-sm text-ink-400">
-          Invite code <span className="font-mono tracking-[0.2em] text-gold-300">{code.toUpperCase()}</span>
+      <Card className="w-full max-w-sm p-8">
+        <h1 className="display text-5xl">You've been challenged</h1>
+        <p className="mt-2 text-sm text-baize-400">
+          Invite code <span className="digits text-[17px] tracking-[0.1em] text-baize-100">{code.toUpperCase()}</span>
         </p>
         {user ? (
-          <div className="mt-6 flex flex-col items-center gap-3 text-sm text-ink-400">
+          <div className="mt-6 flex flex-col items-start gap-3 text-sm text-baize-400">
             {slow ? (
-              <p className="text-ink-300">This invite has expired or was cancelled. Ask your friend for a new link.</p>
+              <p className="text-baize-300">This invite has expired or was cancelled. Ask your friend for a new link.</p>
             ) : (
               <>
                 <Spinner className="size-6" />
                 Joining the game…
               </>
             )}
-            <Link to="/" className="mt-2 text-xs text-ink-500 hover:text-ink-300">
+            <Link to="/" className="mt-2 text-xs text-baize-500 hover:text-baize-300">
               Back to lobby
             </Link>
           </div>
@@ -65,7 +61,7 @@ export default function Join() {
             >
               Accept as guest
             </Button>
-            <Link to={`/login?next=/join/${code}`} className="rounded-xl py-2.5 text-sm font-semibold text-ink-300 hover:text-ink-100">
+            <Link to={`/login?next=/join/${code}`} className="rounded-xl py-2.5 text-sm font-semibold text-baize-300 hover:text-baize-100">
               Sign in to accept
             </Link>
           </div>

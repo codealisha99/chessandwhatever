@@ -4,11 +4,10 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 const VARIANTS: Record<Variant, string> = {
-  primary:
-    'bg-gradient-to-b from-gold-300 to-gold-500 text-ink-950 shadow-[0_8px_24px_-8px_rgb(232_182_90/0.6),inset_0_1px_0_rgb(255_255_255/0.4)] hover:brightness-105',
-  secondary: 'bg-ink-800 text-ink-100 ring-1 ring-inset ring-white/8 hover:bg-ink-700',
-  ghost: 'text-ink-300 hover:bg-white/5 hover:text-ink-100',
-  danger: 'bg-loss/15 text-loss ring-1 ring-inset ring-loss/30 hover:bg-loss/25',
+  primary: 'bg-chalk-400 text-baize-950 shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)] hover:bg-chalk-200',
+  secondary: 'bg-baize-700/70 text-baize-100 hover:bg-baize-700',
+  ghost: 'text-baize-300 hover:bg-white/5 hover:text-baize-100',
+  danger: 'bg-flag text-white shadow-[inset_0_-2px_0_rgb(0_0_0/0.15)] hover:brightness-110',
 }
 
 export function Button({
@@ -20,12 +19,12 @@ export function Button({
   disabled,
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' | 'lg'; loading?: boolean }) {
-  const sizes = { sm: 'h-8 px-3 text-xs gap-1.5', md: 'h-10 px-4 text-sm gap-2', lg: 'h-13 px-6 text-base gap-2.5' }
+  const sizes = { sm: 'h-8 px-3 text-[13px] gap-1.5 rounded-lg', md: 'h-10 px-4 text-sm gap-2 rounded-[10px]', lg: 'h-12 px-6 text-[15px] gap-2.5 rounded-xl' }
   return (
     <button
       type="button"
       disabled={disabled || loading}
-      className={`inline-flex cursor-pointer select-none items-center justify-center rounded-xl font-semibold transition-all duration-150 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45 ${VARIANTS[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex cursor-pointer select-none items-center justify-center font-semibold transition-[background-color,transform,filter] duration-150 active:translate-y-px disabled:pointer-events-none disabled:opacity-40 ${VARIANTS[variant]} ${sizes[size]} ${className}`}
       {...rest}
     >
       {loading && <Loader2 className="size-4 animate-spin" />}
@@ -34,36 +33,29 @@ export function Button({
   )
 }
 
+/** A raised panel of felt. Use sparingly — most content sits directly on the table. */
 export function Card({ className = '', children }: { className?: string; children: ReactNode }) {
-  return (
-    <div className={`rounded-2xl bg-ink-900/80 ring-1 ring-inset ring-white/6 shadow-[0_20px_50px_-30px_rgb(0_0_0/0.8)] backdrop-blur-sm ${className}`}>
-      {children}
-    </div>
-  )
+  return <div className={`rounded-2xl bg-baize-850/90 shadow-[0_1px_0_rgb(255_255_255/0.04)_inset,0_24px_48px_-32px_rgb(0_0_0/0.7)] ${className}`}>{children}</div>
 }
 
 export function Spinner({ className = '' }: { className?: string }) {
-  return <Loader2 className={`animate-spin text-gold-400 ${className}`} />
+  return <Loader2 className={`animate-spin text-baize-300 ${className}`} />
 }
 
-const AVATAR_HUES = [28, 42, 145, 200, 260, 330, 12, 90]
-
+/** Monogram on a felt tile. */
 export function Avatar({ name, size = 36, online }: { name: string; size?: number; online?: boolean }) {
-  const hue = AVATAR_HUES[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_HUES.length]
+  const letter = name.startsWith('Guest_') ? 'G' : name.slice(0, 1).toUpperCase()
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <div
-        className="flex h-full w-full items-center justify-center rounded-xl font-bold text-white/95 ring-1 ring-inset ring-white/15"
-        style={{
-          background: `linear-gradient(135deg, hsl(${hue} 45% 42%), hsl(${hue} 50% 26%))`,
-          fontSize: size * 0.42,
-        }}
+        className="digits flex h-full w-full items-center justify-center rounded-[28%] bg-baize-700 text-baize-200 shadow-[inset_0_1px_0_rgb(255_255_255/0.08)]"
+        style={{ fontSize: size * 0.5 }}
       >
-        {name.replace(/^Guest_/, 'G').slice(0, 1).toUpperCase()}
+        {letter}
       </div>
       {online !== undefined && (
         <span
-          className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full ring-2 ring-ink-900 ${online ? 'bg-win' : 'bg-ink-500'}`}
+          className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full ring-[3px] ring-baize-900 ${online ? 'bg-win' : 'bg-baize-500'}`}
           title={online ? 'Online' : 'Offline'}
         />
       )}
@@ -72,16 +64,16 @@ export function Avatar({ name, size = 36, online }: { name: string; size?: numbe
 }
 
 export function Delta({ value }: { value: number }) {
-  if (value === 0) return <span className="text-ink-400">±0</span>
-  return <span className={value > 0 ? 'text-win' : 'text-loss'}>{value > 0 ? `+${value}` : value}</span>
+  if (value === 0) return <span className="text-baize-400">±0</span>
+  return <span className={value > 0 ? 'text-win' : 'text-loss'}>{value > 0 ? `+${value}` : `−${Math.abs(value)}`}</span>
 }
 
-export function PageHeader({ eyebrow, title, children }: { eyebrow?: string; title: ReactNode; children?: ReactNode }) {
+export function PageHeader({ title, lede, children }: { title: ReactNode; lede?: ReactNode; children?: ReactNode }) {
   return (
-    <div className="mb-8 flex flex-wrap items-end justify-between gap-4 animate-fade-up">
-      <div>
-        {eyebrow && <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gold-400">{eyebrow}</div>}
-        <h1 className="font-display text-5xl leading-none text-ink-100 md:text-6xl">{title}</h1>
+    <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
+      <div className="max-w-2xl">
+        <h1 className="display text-6xl text-baize-100 md:text-7xl">{title}</h1>
+        {lede && <p className="mt-3 text-[15px] leading-relaxed text-baize-400">{lede}</p>}
       </div>
       {children}
     </div>
@@ -90,29 +82,29 @@ export function PageHeader({ eyebrow, title, children }: { eyebrow?: string; tit
 
 export function EmptyState({ icon, title, children }: { icon: ReactNode; title: string; children?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex size-14 items-center justify-center rounded-2xl bg-ink-800 text-ink-400 ring-1 ring-white/5">{icon}</div>
-      <div className="text-lg font-semibold text-ink-200">{title}</div>
-      {children && <div className="max-w-sm text-sm text-ink-400">{children}</div>}
+    <div className="flex flex-col items-start gap-3 px-6 py-14">
+      <div className="text-baize-500">{icon}</div>
+      <div className="text-lg font-semibold text-baize-200">{title}</div>
+      {children && <div className="max-w-md text-sm leading-relaxed text-baize-400">{children}</div>}
     </div>
   )
 }
 
 export function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-4 py-2.5">
+    <label className="flex cursor-pointer items-center justify-between gap-4 py-3">
       <span>
-        <span className="block text-sm font-medium text-ink-100">{label}</span>
-        {hint && <span className="block text-xs text-ink-400">{hint}</span>}
+        <span className="block text-sm font-medium text-baize-100">{label}</span>
+        {hint && <span className="block text-xs text-baize-400">{hint}</span>}
       </span>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? 'bg-gold-500' : 'bg-ink-600'}`}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? 'bg-chalk-400' : 'bg-baize-600'}`}
       >
-        <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${checked ? 'left-[22px]' : 'left-0.5'}`} />
+        <span className={`absolute top-0.5 size-5 rounded-full shadow transition-all ${checked ? 'left-[22px] bg-baize-900' : 'left-0.5 bg-baize-300'}`} />
       </button>
     </label>
   )

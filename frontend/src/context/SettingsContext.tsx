@@ -2,12 +2,12 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { setSoundEnabled } from '../lib/sound'
 
 export const BOARD_THEMES = {
-  walnut: { name: 'Walnut', light: '#ecd6b0', dark: '#b07f55', lastMove: 'rgb(232 182 90 / 0.5)' },
-  green: { name: 'Tournament', light: '#ebecd0', dark: '#739552', lastMove: 'rgb(245 246 130 / 0.55)' },
+  tournament: { name: 'Tournament', light: '#ebe8d2', dark: '#6e9160', lastMove: 'rgb(246 232 110 / 0.5)' },
+  walnut: { name: 'Walnut', light: '#ecd6b0', dark: '#a87a52', lastMove: 'rgb(246 216 120 / 0.5)' },
   slate: { name: 'Slate', light: '#dfe3e8', dark: '#7d8fa3', lastMove: 'rgb(155 199 255 / 0.5)' },
   midnight: { name: 'Midnight', light: '#c3c9d6', dark: '#4b5675', lastMove: 'rgb(140 170 255 / 0.45)' },
   coral: { name: 'Coral', light: '#f3e1d4', dark: '#d07e6a', lastMove: 'rgb(255 214 120 / 0.55)' },
-  marble: { name: 'Marble', light: '#e9e6e1', dark: '#a39a8d', lastMove: 'rgb(232 182 90 / 0.5)' },
+  marble: { name: 'Marble', light: '#e9e6e1', dark: '#a39a8d', lastMove: 'rgb(240 214 130 / 0.5)' },
 } as const
 
 export type BoardTheme = keyof typeof BOARD_THEMES
@@ -23,7 +23,7 @@ export interface Settings {
 }
 
 const DEFAULTS: Settings = {
-  boardTheme: 'walnut',
+  boardTheme: 'tournament',
   sound: true,
   coordinates: true,
   showLegalMoves: true,

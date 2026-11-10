@@ -1,13 +1,14 @@
-import { Bot, Check, Copy, Eye, Link2, Swords, Users, X, Zap } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Chess } from 'chess.js'
+import { Check, Copy, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Board, pieceUrl } from '../components/Board'
-import { Button, Card } from '../components/ui'
+import { Button } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useOnline } from '../context/OnlineContext'
 import { api } from '../lib/api'
-import { TIME_CONTROLS } from '../lib/timeControls'
-import type { Color } from '../lib/types'
+import { TIME_CONTROLS, type TimeControlOption } from '../lib/timeControls'
+import type { Color, LiveGame } from '../lib/types'
 
 interface Stats {
   online: number
@@ -19,7 +20,13 @@ interface Stats {
 
 type Pending = { kind: 'queue'; tc: string } | { kind: 'room'; tc: string; color: Color | 'random' } | null
 
-const HERO_FEN = 'r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4'
+const CATEGORIES: TimeControlOption['category'][] = ['Bullet', 'Blitz', 'Rapid', 'Classical']
+const CATEGORY_NOTE: Record<TimeControlOption['category'], string> = {
+  Bullet: 'Under three minutes',
+  Blitz: 'Three to eight',
+  Rapid: 'Ten to twenty-five',
+  Classical: 'Half an hour or more',
+}
 
 export default function Home() {
   const { user, playAsGuest } = useAuth()
@@ -57,8 +64,14 @@ export default function Home() {
     }
   }
 
+  const searching = queuedFor ?? (pending?.kind === 'queue' ? pending.tc : null)
+
   async function quickPlay(tc: string) {
-    if (queuedFor === tc) return send({ type: 'cancel_queue' })
+    if (searching === tc) {
+      setPending(null)
+      send({ type: 'cancel_queue' })
+      return
+    }
     if (await ensureUser()) setPending({ kind: 'queue', tc })
   }
 
@@ -66,117 +79,150 @@ export default function Home() {
     if (await ensureUser()) setPending({ kind: 'room', tc, color })
   }
 
-  const searching = queuedFor ?? (pending?.kind === 'queue' ? pending.tc : null)
-
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-20 pt-8 sm:px-6 lg:pt-12">
-      {!user && <Hero />}
+    <div className="mx-auto max-w-[1320px] px-5 pb-16 pt-10 sm:px-8 lg:pt-16">
+      <section className="grid gap-x-16 gap-y-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,500px)]">
+        <div>
+          <h1 className="display animate-rise text-[clamp(4.5rem,11vw,9.5rem)] text-baize-100">Your move.</h1>
+          <p className="mt-6 max-w-[34rem] text-[17px] leading-relaxed text-baize-300">
+            {user
+              ? `Pick a clock and you'll be paired with the next player waiting for it. You're rated ${user.rating}.`
+              : "Pick a clock and you'll be paired with the next player waiting for it. No sign-up needed: you get a guest account and a 1200 rating on the spot."}
+          </p>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <Card className="animate-fade-up p-5 sm:p-7">
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div>
-              <h2 className="flex items-center gap-2.5 text-xl font-bold">
-                <Zap className="size-5 text-gold-400" /> Quick pairing
-              </h2>
-              <p className="mt-1 text-sm text-ink-400">Rated game against the next player looking for the same time control.</p>
-            </div>
-            {stats && (
-              <div className="hidden shrink-0 text-right text-xs text-ink-400 sm:block">
-                <div className="flex items-center justify-end gap-1.5">
-                  <span className="size-1.5 rounded-full bg-win" /> <b className="tabular text-ink-200">{stats.online}</b> online
+          <div className="mt-12 space-y-5">
+            {CATEGORIES.map((cat) => (
+              <div key={cat} className="grid gap-3 sm:grid-cols-[9rem_1fr] sm:items-center">
+                <div>
+                  <div className="text-[15px] font-semibold text-baize-200">{cat}</div>
+                  <div className="text-[13px] text-baize-500">{CATEGORY_NOTE[cat]}</div>
                 </div>
-                <div className="mt-0.5">
-                  <b className="tabular text-ink-200">{stats.playing}</b> games in play
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                  {TIME_CONTROLS.filter((t) => t.category === cat).map((tc) => (
+                    <ClockTile key={tc.id} tc={tc} searching={searching === tc.id} disabled={busy} onClick={() => quickPlay(tc.id)} />
+                  ))}
                 </div>
               </div>
-            )}
+            ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-            {TIME_CONTROLS.map((tc) => {
-              const active = searching === tc.id
-              return (
-                <button
-                  key={tc.id}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => quickPlay(tc.id)}
-                  className={`group relative flex h-24 flex-col items-center justify-center rounded-2xl transition-all duration-200 ${
-                    active
-                      ? 'animate-pulse-ring bg-gold-400/15 ring-2 ring-gold-400'
-                      : 'bg-ink-800/80 ring-1 ring-inset ring-white/6 hover:-translate-y-0.5 hover:bg-ink-700 hover:ring-white/15'
-                  }`}
-                >
-                  <span className={`tabular font-mono text-2xl font-semibold ${active ? 'text-gold-300' : 'text-ink-100'}`}>{tc.label}</span>
-                  <span className="mt-1 text-xs font-medium text-ink-400">{active ? 'Searching… tap to cancel' : tc.category}</span>
-                </button>
-              )
-            })}
-            <Link
-              to="/computer"
-              className="flex h-24 flex-col items-center justify-center rounded-2xl bg-ink-800/40 text-ink-300 ring-1 ring-inset ring-dashed ring-white/10 transition hover:bg-ink-800 hover:text-ink-100"
-            >
-              <Bot className="size-6" />
-              <span className="mt-1.5 text-xs font-medium">vs Computer</span>
-            </Link>
-          </div>
-
-          {searching && <SearchingBanner tc={searching} onCancel={() => (setPending(null), send({ type: 'cancel_queue' }))} />}
-        </Card>
-
-        <div className="flex flex-col gap-6">
-          <FriendCard room={room} busy={busy} onCreate={createRoom} onCancel={() => send({ type: 'cancel_room' })} />
-          <ComputerCard />
-          <Card className="animate-fade-up p-5 [animation-delay:240ms]">
-            <Link to="/watch" className="group flex items-center justify-between">
-              <span className="flex items-center gap-3">
-                <span className="flex size-10 items-center justify-center rounded-xl bg-ink-800 text-ink-300 ring-1 ring-white/5">
-                  <Eye className="size-5" />
-                </span>
-                <span>
-                  <span className="block font-semibold">Watch live games</span>
-                  <span className="block text-xs text-ink-400">{stats ? `${stats.playing} in progress · ${stats.games} played all-time` : 'Spectate games in real time'}</span>
-                </span>
-              </span>
-              <span className="text-ink-500 transition group-hover:translate-x-0.5 group-hover:text-gold-400">→</span>
-            </Link>
-          </Card>
+          <p className="mt-6 h-5 text-[13px] text-baize-500" aria-live="polite">
+            {searching
+              ? 'Looking for an opponent. Tap the clock again to stop.'
+              : stats?.online
+                ? `${stats.online} ${stats.online === 1 ? 'player' : 'players'} online, ${stats.playing} ${stats.playing === 1 ? 'game' : 'games'} in progress.`
+                : ''}
+          </p>
         </div>
-      </div>
+
+        <OperaGame />
+      </section>
+
+      <section className="mt-24 grid gap-12 border-t border-white/[0.07] pt-12 lg:grid-cols-3 lg:gap-10">
+        <FriendInvite room={room} busy={busy} onCreate={createRoom} onCancel={() => send({ type: 'cancel_room' })} />
+        <div>
+          <h2 className="text-xl font-semibold">Practice against Stockfish</h2>
+          <p className="mt-2 max-w-sm text-[15px] leading-relaxed text-baize-400">
+            Eight strengths, from a beginner who hangs pieces to full engine strength. Take moves back, ask for a hint, and analyse the game afterwards.
+          </p>
+          <Link to="/computer" className="mt-5 inline-flex h-10 items-center rounded-[10px] bg-baize-700/70 px-4 text-sm font-semibold transition-colors hover:bg-baize-700">
+            Set up a practice game
+          </Link>
+        </div>
+        <LiveGames />
+      </section>
     </div>
   )
 }
 
-function SearchingBanner({ tc, onCancel }: { tc: string; onCancel: () => void }) {
+function ClockTile({ tc, searching, disabled, onClick }: { tc: TimeControlOption; searching: boolean; disabled: boolean; onClick: () => void }) {
+  const [base, inc] = tc.id.split('+')
   const [secs, setSecs] = useState(0)
   useEffect(() => {
+    if (!searching) return setSecs(0)
     const start = Date.now()
     const t = setInterval(() => setSecs(Math.floor((Date.now() - start) / 1000)), 1000)
     return () => clearInterval(t)
-  }, [tc])
+  }, [searching])
+
   return (
-    <div className="mt-6 flex animate-fade-up items-center justify-between gap-4 rounded-2xl bg-gold-400/8 p-4 ring-1 ring-gold-400/25">
-      <div className="flex items-center gap-4">
-        <div className="relative flex size-11 items-center justify-center">
-          <span className="absolute inset-0 animate-ping rounded-full bg-gold-400/30" />
-          <img src={pieceUrl('wN')} alt="" className="relative size-9 animate-bounce" />
-        </div>
-        <div>
-          <div className="font-semibold text-gold-200">Finding an opponent for {tc.replace('+', ' + ')}</div>
-          <div className="tabular text-sm text-ink-400">
-            {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')} elapsed · you’ll be paired with the next player
-          </div>
-        </div>
-      </div>
-      <Button variant="ghost" size="sm" onClick={onCancel}>
-        <X className="size-4" /> Cancel
-      </Button>
-    </div>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      aria-pressed={searching}
+      aria-label={searching ? `Searching for a ${tc.label} game, select to cancel` : `Play ${base} minutes plus ${inc} seconds`}
+      className={`group relative flex h-[74px] items-center justify-between rounded-[14px] px-4 text-left transition-[background-color,box-shadow,transform] duration-150 active:translate-y-px ${
+        searching
+          ? 'bg-chalk-400 text-baize-950 shadow-[inset_0_-3px_0_rgb(0_0_0/0.1)]'
+          : 'bg-baize-850 text-baize-100 shadow-[inset_0_1px_0_rgb(255_255_255/0.05)] hover:bg-baize-700'
+      }`}
+    >
+      <span className="digits flex items-baseline gap-1 text-[2.1rem] leading-none">
+        {base}
+        <span className={`text-[1.1rem] ${searching ? 'text-baize-700' : 'text-baize-500 group-hover:text-baize-400'}`}>+{inc}</span>
+      </span>
+      {searching ? (
+        <span className="digits flex flex-col items-end text-[13px] leading-tight">
+          <span className="flex items-center gap-1.5">
+            <span className="size-1.5 animate-pulse rounded-full bg-flag" />
+            {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
+          </span>
+          <X className="mt-1 size-3.5 opacity-60" />
+        </span>
+      ) : null}
+    </button>
   )
 }
 
-function FriendCard({
+// Paul Morphy vs Duke Karl of Brunswick & Count Isouard, Paris Opera, 1858.
+const OPERA = 'e4 e5 Nf3 d6 d4 Bg4 dxe5 Bxf3 Qxf3 dxe5 Bc4 Nf6 Qb3 Qe7 Nc3 c6 Bg5 b5 Nxb5 cxb5 Bxb5+ Nbd7 O-O-O Rd8 Rxd7 Rxd7 Rd1 Qe6 Bxd7+ Nxd7 Qb8+ Nxb8 Rd8#'.split(' ')
+const PLY_MS = 1300
+const HOLD_END_MS = 5000
+
+function OperaGame() {
+  const plies = useMemo(() => {
+    const c = new Chess()
+    return OPERA.map((san) => {
+      const m = c.move(san)
+      return { san, from: m.from, to: m.to, fen: c.fen() }
+    })
+  }, [])
+  const reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  const [ply, setPly] = useState(reduced ? plies.length - 1 : -1)
+
+  useEffect(() => {
+    if (reduced) return
+    const t = setTimeout(() => setPly((p) => (p >= plies.length - 1 ? -1 : p + 1)), ply >= plies.length - 1 ? HOLD_END_MS : ply < 0 ? 900 : PLY_MS)
+    return () => clearTimeout(t)
+  }, [ply, plies.length, reduced])
+
+  const current = ply >= 0 ? plies[ply] : null
+  const moveNo = ply >= 0 ? Math.floor(ply / 2) + 1 : 0
+  return (
+    <figure className="w-full max-w-[500px] animate-rise justify-self-center [animation-delay:120ms] lg:justify-self-end">
+      <div className="pointer-events-none">
+        <Board fen={current?.fen ?? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'} orientation="white" movable={null} lastMove={current} />
+      </div>
+      <figcaption className="mt-6 flex items-start justify-between gap-6">
+        <span className="max-w-[17rem] text-[13px] leading-relaxed text-baize-400">
+          Morphy against the Duke of Brunswick and Count Isouard, played in a box at the Paris Opera, 1858.
+        </span>
+        <span className="digits shrink-0 text-right text-[1.6rem] leading-none text-baize-200" aria-live="off">
+          {current ? (
+            <>
+              <span className="text-baize-500">{moveNo}{ply % 2 === 0 ? '.' : '…'}</span> {current.san}
+            </>
+          ) : (
+            <span className="text-baize-500">1.</span>
+          )}
+        </span>
+      </figcaption>
+    </figure>
+  )
+}
+
+function FriendInvite({
   room,
   busy,
   onCreate,
@@ -201,43 +247,40 @@ function FriendCard({
   }
 
   return (
-    <Card className="animate-fade-up p-5 [animation-delay:80ms]">
-      <h3 className="flex items-center gap-2.5 font-bold">
-        <Users className="size-5 text-gold-400" /> Play a friend
-      </h3>
+    <div>
+      <h2 className="text-xl font-semibold">Play a friend</h2>
       {room ? (
-        <div className="mt-4">
-          <p className="text-sm text-ink-400">Send this link. The game starts the moment they open it.</p>
-          <div className="mt-3 flex items-center gap-2 rounded-xl bg-ink-950/60 p-1.5 pl-3 ring-1 ring-white/8">
-            <Link2 className="size-4 shrink-0 text-ink-500" />
-            <span className="min-w-0 flex-1 truncate font-mono text-sm text-ink-200">{link}</span>
-            <Button size="sm" variant="primary" onClick={copy}>
-              {copied ? <Check className="size-4" /> : <Copy className="size-4" />} {copied ? 'Copied' : 'Copy'}
-            </Button>
+        <>
+          <p className="mt-2 text-[15px] leading-relaxed text-baize-400">Send this link. The game starts as soon as they open it.</p>
+          <div className="mt-5 rounded-2xl bg-baize-850 p-4">
+            <div className="digits text-[2.6rem] leading-none tracking-[0.08em] text-baize-100">{room.code}</div>
+            <div className="mt-2 truncate text-[13px] text-baize-500">{link}</div>
+            <div className="mt-4 flex items-center gap-2">
+              <Button size="sm" variant="primary" onClick={copy}>
+                {copied ? <Check className="size-4" /> : <Copy className="size-4" />} {copied ? 'Copied' : 'Copy link'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={onCancel}>
+                Cancel invite
+              </Button>
+            </div>
           </div>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-sm text-ink-400">
-              Code <b className="font-mono tracking-[0.2em] text-gold-300">{room.code}</b> · {room.tc.replace('+', ' + ')}
-            </span>
-            <button type="button" onClick={onCancel} className="text-sm font-medium text-ink-400 hover:text-loss">
-              Cancel
-            </button>
-          </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-ink-500">
-            <span className="size-1.5 animate-pulse rounded-full bg-gold-400" /> Waiting for your friend…
-          </div>
-        </div>
+          <p className="mt-3 flex items-center gap-2 text-[13px] text-baize-500">
+            <span className="size-1.5 animate-pulse rounded-full bg-flag" /> Waiting for your friend, {room.tc.replace('+', ' + ')}
+          </p>
+        </>
       ) : (
         <>
-          <div className="mt-4 grid grid-cols-4 gap-1.5">
-            {TIME_CONTROLS.filter((t) => ['3+2', '5+0', '10+0', '15+10'].includes(t.id)).map((t) => (
+          <p className="mt-2 max-w-sm text-[15px] leading-relaxed text-baize-400">Make a private, rated game and share the link. Choose the clock and your colour.</p>
+          <div className="mt-5 flex flex-wrap gap-1.5">
+            {['3+2', '5+0', '10+0', '15+10'].map((id) => (
               <button
-                key={t.id}
+                key={id}
                 type="button"
-                onClick={() => setTc(t.id)}
-                className={`tabular h-9 rounded-lg font-mono text-sm font-semibold transition ${tc === t.id ? 'bg-gold-400 text-ink-950' : 'bg-ink-800 text-ink-300 hover:bg-ink-700'}`}
+                onClick={() => setTc(id)}
+                aria-pressed={tc === id}
+                className={`digits h-9 rounded-lg px-3 text-[17px] transition-colors ${tc === id ? 'bg-chalk-400 text-baize-950' : 'bg-baize-850 text-baize-300 hover:bg-baize-700'}`}
               >
-                {t.id}
+                {id.replace('+', ' + ')}
               </button>
             ))}
           </div>
@@ -246,37 +289,31 @@ function FriendCard({
               <button
                 key={c}
                 type="button"
-                aria-label={`Play as ${c}`}
+                aria-pressed={color === c}
                 onClick={() => setColor(c)}
-                className={`flex h-10 flex-1 items-center justify-center rounded-lg transition ${color === c ? 'bg-ink-600 ring-2 ring-gold-400' : 'bg-ink-800 hover:bg-ink-700'}`}
+                className={`flex h-10 flex-1 items-center justify-center gap-2 rounded-lg text-[13px] font-medium capitalize transition-colors ${color === c ? 'bg-baize-700 text-baize-100 ring-2 ring-chalk-400' : 'bg-baize-850 text-baize-400 hover:bg-baize-700'}`}
               >
-                {c === 'random' ? (
-                  <span className="relative size-6">
-                    <img src={pieceUrl('wK')} alt="" className="absolute inset-0 size-6 [clip-path:inset(0_50%_0_0)]" />
-                    <img src={pieceUrl('bK')} alt="" className="absolute inset-0 size-6 [clip-path:inset(0_0_0_50%)]" />
-                  </span>
-                ) : (
-                  <img src={pieceUrl(c === 'white' ? 'wK' : 'bK')} alt="" className="size-6" />
-                )}
+                {c !== 'random' && <img src={pieceUrl(c === 'white' ? 'wK' : 'bK')} alt="" className="size-5" />}
+                {c}
               </button>
             ))}
           </div>
           <Button variant="primary" className="mt-3 w-full" loading={busy} onClick={() => onCreate(tc, color)}>
-            <Swords className="size-4" /> Create invite link
+            Create invite link
           </Button>
           <form
             className="mt-3 flex gap-2"
             onSubmit={(e) => {
               e.preventDefault()
-              if (code.trim().length === 6) navigate(`/join/${code.trim().toUpperCase()}`)
+              if (code.length === 6) navigate(`/join/${code}`)
             }}
           >
             <input
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase())}
-              placeholder="Have a code?"
+              placeholder="Enter a code"
               aria-label="Invite code"
-              className="h-10 min-w-0 flex-1 rounded-xl bg-ink-950/60 px-3 font-mono text-sm tracking-[0.2em] uppercase ring-1 ring-white/8 placeholder:tracking-normal placeholder:normal-case placeholder:text-ink-500 focus:outline-none focus:ring-gold-400/60"
+              className="digits h-10 min-w-0 flex-1 rounded-[10px] bg-baize-950/50 px-3 text-[17px] tracking-[0.12em] shadow-[inset_0_2px_4px_rgb(0_0_0/0.3)] placeholder:font-sans placeholder:text-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-baize-500 focus:outline-none focus:ring-2 focus:ring-chalk-400/50"
             />
             <Button type="submit" disabled={code.length !== 6}>
               Join
@@ -284,76 +321,44 @@ function FriendCard({
           </form>
         </>
       )}
-    </Card>
+    </div>
   )
 }
 
-function ComputerCard() {
+function LiveGames() {
+  const [games, setGames] = useState<LiveGame[] | null>(null)
+  useEffect(() => {
+    const load = () => api<LiveGame[]>('/games/live').then(setGames).catch(() => setGames(null))
+    load()
+    const t = setInterval(load, 6000)
+    return () => clearInterval(t)
+  }, [])
+  const top = games?.slice(0, 4) ?? []
   return (
-    <Card className="group relative animate-fade-up overflow-hidden p-5 [animation-delay:160ms]">
-      <div className="absolute -right-6 -top-6 size-32 rounded-full bg-gold-400/10 blur-2xl transition group-hover:bg-gold-400/20" />
-      <Link to="/computer" className="relative flex items-center justify-between gap-4">
-        <span className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-ink-700 to-ink-800 text-gold-300 ring-1 ring-white/10">
-            <Bot className="size-5" />
-          </span>
-          <span>
-            <span className="block font-semibold">Play the computer</span>
-            <span className="block text-xs text-ink-400">Stockfish 19 · 8 levels · hints & takebacks</span>
-          </span>
-        </span>
-        <span className="text-ink-500 transition group-hover:translate-x-0.5 group-hover:text-gold-400">→</span>
+    <div>
+      <h2 className="text-xl font-semibold">Being played now</h2>
+      {top.length === 0 ? (
+        <p className="mt-2 max-w-sm text-[15px] leading-relaxed text-baize-400">No games in progress. Start one above and it will show up here for others to watch.</p>
+      ) : (
+        <ul className="mt-4">
+          {top.map((g) => (
+            <li key={g.id}>
+              <Link to={`/play/${g.id}`} className="-mx-3 flex items-center justify-between gap-4 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.04]">
+                <span className="min-w-0 text-[15px]">
+                  <span className="block truncate font-medium">
+                    {g.white.username} <span className="text-baize-500">v</span> {g.black.username}
+                  </span>
+                  <span className="text-[13px] text-baize-500">Move {Math.max(1, Math.ceil(g.ply / 2))}, {g.tc.replace('+', ' + ')}</span>
+                </span>
+                <span className="digits shrink-0 text-[15px] text-baize-400">{Math.round((g.white.rating + g.black.rating) / 2)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Link to="/watch" className="mt-4 inline-block text-sm font-semibold text-baize-200 underline decoration-baize-600 underline-offset-4 hover:decoration-baize-200">
+        See all live games
       </Link>
-    </Card>
-  )
-}
-
-function Hero() {
-  const { playAsGuest } = useAuth()
-  const { notify } = useOnline()
-  const [busy, setBusy] = useState(false)
-  return (
-    <section className="mb-12 grid items-center gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
-      <div className="animate-fade-up">
-        <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-ink-300 ring-1 ring-white/10">
-          <span className="size-1.5 rounded-full bg-win" /> Real-time · Rated · Free forever
-        </div>
-        <h1 className="font-display text-6xl leading-[0.95] tracking-tight text-ink-100 sm:text-7xl xl:text-8xl">
-          Every move <br />
-          <em className="bg-gradient-to-r from-gold-300 via-gold-400 to-gold-600 bg-clip-text text-transparent">matters.</em>
-        </h1>
-        <p className="mt-6 max-w-lg text-lg leading-relaxed text-ink-300">
-          Rated games from bullet to classical, private rooms for friends, live spectating and Stockfish analysis. Everything runs in your browser, with nothing to install.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Button
-            variant="primary"
-            size="lg"
-            loading={busy}
-            onClick={async () => {
-              setBusy(true)
-              try {
-                await playAsGuest()
-              } catch (e) {
-                notify((e as Error).message, 'error')
-              } finally {
-                setBusy(false)
-              }
-            }}
-          >
-            <Swords className="size-5" /> Play as guest
-          </Button>
-          <Link to="/signup" className="inline-flex h-13 items-center rounded-xl bg-white/5 px-6 font-semibold ring-1 ring-white/10 transition hover:bg-white/10">
-            Create free account
-          </Link>
-        </div>
-      </div>
-      <div className="relative mx-auto w-full max-w-[460px] animate-fade-up [animation-delay:120ms]">
-        <div className="absolute -inset-8 rounded-[3rem] bg-gold-400/10 blur-3xl" />
-        <div className="relative rotate-[-2deg] transition duration-500 hover:rotate-0">
-          <Board fen={HERO_FEN} orientation="white" movable={null} lastMove={{ from: 'd1', to: 'h5' }} arrows={[{ from: 'h5', to: 'f7', color: 'rgb(224 103 91 / 0.85)' }]} />
-        </div>
-      </div>
-    </section>
+    </div>
   )
 }

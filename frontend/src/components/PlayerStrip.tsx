@@ -1,8 +1,8 @@
 import { WifiOff } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { pieceUrl } from './Board'
-import { Avatar, Delta } from './ui'
-import type { ReactNode } from 'react'
+import { Delta } from './ui'
 
 interface Props {
   name: string
@@ -17,33 +17,37 @@ interface Props {
   active?: boolean
 }
 
+/** One side of the board: who plays this colour, what they've taken, and their clock. */
 export function PlayerStrip({ name, rating, color, captured, advantage, link = true, delta, offline, right, active }: Props) {
   const enemy = color === 'white' ? 'b' : 'w'
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className={`rounded-xl transition ${active ? 'ring-2 ring-gold-400 ring-offset-2 ring-offset-ink-950' : ''}`}>
-          <Avatar name={name} size={40} />
-        </div>
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex min-w-0 items-center gap-3.5">
+        <span
+          aria-label={`Plays ${color}`}
+          className={`size-[18px] shrink-0 rounded-full transition-shadow ${
+            color === 'white' ? 'bg-chalk-300 shadow-[inset_0_-2px_0_rgb(0_0_0/0.15)]' : 'bg-baize-950 shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_0_0_1px_rgb(255_255_255/0.1)]'
+          } ${active ? 'ring-[3px] ring-chalk-400/35 ring-offset-0' : ''}`}
+        />
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[15px] font-semibold">
+          <div className="flex items-baseline gap-2">
             {link ? (
-              <Link to={`/u/${name}`} className="truncate hover:text-gold-300">
+              <Link to={`/u/${name}`} className="truncate text-[16px] font-semibold text-baize-100 hover:underline hover:underline-offset-4">
                 {name}
               </Link>
             ) : (
-              <span className="truncate">{name}</span>
+              <span className="truncate text-[16px] font-semibold text-baize-100">{name}</span>
             )}
-            {rating !== undefined && <span className="tabular font-normal text-ink-400">({rating})</span>}
+            {rating !== undefined && <span className="digits text-[15px] text-baize-400">{rating}</span>}
             {delta !== undefined && delta !== null && (
-              <span className="tabular text-sm font-semibold">
+              <span className="digits text-[15px]">
                 <Delta value={delta} />
               </span>
             )}
           </div>
-          <div className="flex h-5 items-center">
+          <div className="mt-0.5 flex h-5 items-center">
             {offline ? (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-loss">
+              <span className="flex items-center gap-1.5 text-[13px] font-medium text-loss">
                 <WifiOff className="size-3.5" /> {offline}
               </span>
             ) : (
@@ -54,11 +58,11 @@ export function PlayerStrip({ name, rating, color, captured, advantage, link = t
                       key={i}
                       src={pieceUrl(`${enemy}${t.toUpperCase()}`)}
                       alt=""
-                      className={`size-[18px] ${i > 0 && captured[i - 1] === t ? '-ml-2.5' : i > 0 ? '-ml-0.5' : ''}`}
+                      className={`size-[19px] ${i > 0 && captured[i - 1] === t ? '-ml-[11px]' : i > 0 ? '-ml-0.5' : ''}`}
                     />
                   ))}
                 </div>
-                {advantage > 0 && <span className="ml-1.5 text-xs font-semibold text-ink-400">+{advantage}</span>}
+                {advantage > 0 && <span className="digits ml-1.5 text-[13px] text-baize-400">+{advantage}</span>}
               </>
             )}
           </div>

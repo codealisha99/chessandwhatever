@@ -3,9 +3,15 @@ import { formatClock } from '../lib/chess'
 import { playSound } from '../lib/sound'
 
 const LOW_TIME_MS = 20_000
+/** the flag on an analog clock starts lifting in the last minute */
+const FLAG_WINDOW_MS = 60_000
 
-/** Server-synced clock: `ms` was correct at performance time `at`; counts down locally while `ticking`. */
-export function Clock({ ms, at, ticking, warnSound = false, finished = false }: { ms: number; at: number; ticking: boolean; warnSound?: boolean; finished?: boolean }) {
+/**
+ * Server-synced clock: `ms` was correct at performance time `at`; counts down locally while `ticking`.
+ * Styled after an analog tournament clock: an ivory face while running, a recessed one while waiting,
+ * and a red flag that rises during the final minute.
+ */
+export function Clock({ ms, at, ticking, warnSound = false, finished = false, size = 'md' }: { ms: number; at: number; ticking: boolean; warnSound?: boolean; finished?: boolean; size?: 'md' | 'lg' }) {
   const [now, setNow] = useState(() => performance.now())
   const lastWarn = useRef<number | null>(null)
 
@@ -23,6 +29,7 @@ export function Clock({ ms, at, ticking, warnSound = false, finished = false }: 
   const left = Math.max(0, ticking ? ms - (now - at) : ms)
   const low = left < LOW_TIME_MS
   const secs = Math.ceil(left / 1000)
+  const flagLift = Math.max(0, Math.min(1, 1 - left / FLAG_WINDOW_MS))
 
   useEffect(() => {
     if (!ticking || !warnSound || secs > 10 || secs <= 0 || lastWarn.current === secs) return
@@ -30,20 +37,30 @@ export function Clock({ ms, at, ticking, warnSound = false, finished = false }: 
     playSound('tick')
   }, [secs, ticking, warnSound])
 
+  const face = ticking
+    ? low
+      ? 'bg-flag text-white shadow-[0_0_0_1px_rgb(0_0_0/0.2),0_10px_30px_-10px_rgb(224_83_61/0.8)]'
+      : 'bg-chalk-400 text-baize-950 shadow-[inset_0_-3px_0_rgb(0_0_0/0.1),0_10px_30px_-14px_rgb(242_238_227/0.5)]'
+    : low && !finished
+      ? 'bg-baize-800 text-loss shadow-[inset_0_2px_6px_rgb(0_0_0/0.35)]'
+      : 'bg-baize-800 text-baize-300 shadow-[inset_0_2px_6px_rgb(0_0_0/0.35)]'
+
   return (
     <div
-      className={`tabular flex h-12 min-w-[7.5rem] items-center justify-end rounded-xl px-4 font-mono text-[1.65rem] font-semibold tracking-tight transition-colors duration-200 ${
-        ticking
-          ? low
-            ? 'bg-loss text-white shadow-[0_0_24px_-4px_rgb(224_103_91/0.7)]'
-            : 'bg-ink-100 text-ink-950 shadow-[0_0_24px_-8px_rgb(241_235_224/0.5)]'
-          : finished || !low
-            ? 'bg-ink-800 text-ink-300 ring-1 ring-inset ring-white/5'
-            : 'bg-loss/20 text-loss ring-1 ring-inset ring-loss/30'
-      }`}
-      aria-label={`Clock ${formatClock(left)}`}
+      className={`digits relative flex items-center justify-end overflow-hidden transition-colors duration-200 ${
+        size === 'lg' ? 'h-16 min-w-[10rem] rounded-2xl px-5 text-[2.75rem]' : 'h-14 min-w-[8.5rem] rounded-[14px] px-4 text-[2.15rem]'
+      } ${face}`}
+      role="timer"
+      aria-label={`${formatClock(left)} remaining`}
     >
-      {formatClock(left)}
+      {flagLift > 0 && !finished && (
+        <span
+          aria-hidden
+          className={`absolute left-3 top-1/2 h-4 w-3 origin-bottom-left transition-transform duration-500 ${ticking && low ? 'bg-white' : 'bg-flag'}`}
+          style={{ clipPath: 'polygon(0 0, 100% 50%, 0 100%)', transform: `translateY(-50%) rotate(${-90 + flagLift * 90}deg)` }}
+        />
+      )}
+      <span className="leading-none">{formatClock(left)}</span>
     </div>
   )
 }

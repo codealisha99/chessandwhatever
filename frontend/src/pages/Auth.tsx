@@ -1,7 +1,6 @@
-import { ArrowRight, UserRound } from 'lucide-react'
+import { UserRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { Logo } from '../components/Layout'
 import { Button, Card } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 
@@ -42,15 +41,14 @@ export default function Auth({ mode }: { mode: 'login' | 'signup' }) {
 
   return (
     <div className="flex min-h-[calc(100dvh-64px)] items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm animate-fade-up">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <Logo />
-          <h1 className="mt-6 font-display text-5xl">{isSignup ? 'Join the board' : 'Welcome back'}</h1>
-          <p className="mt-2 text-ink-400">{isSignup ? 'Create an account to keep your rating and history.' : 'Sign in to continue playing.'}</p>
+      <div className="w-full max-w-sm">
+        <div className="mb-8">
+          <h1 className="display text-6xl">{isSignup ? 'Join the board' : 'Welcome back'}</h1>
+          <p className="mt-3 text-[15px] text-baize-400">{isSignup ? 'Create an account to keep your rating and history.' : 'Sign in to continue playing.'}</p>
         </div>
         <Card className="p-6">
           {user?.isGuest && isSignup && (
-            <div className="mb-4 rounded-xl bg-gold-400/10 p-3 text-xs text-gold-200 ring-1 ring-gold-400/20">
+            <div className="mb-4 rounded-xl bg-baize-800 p-3 text-[13px] text-baize-300">
               You're playing as <b>{user.username}</b>. A new account starts fresh at 1200.
             </div>
           )}
@@ -63,19 +61,19 @@ export default function Auth({ mode }: { mode: 'login' | 'signup' }) {
               </p>
             )}
             <Button type="submit" variant="primary" size="lg" className="w-full" loading={busy === 'form'} disabled={!username || !password}>
-              {isSignup ? 'Create account' : 'Sign in'} <ArrowRight className="size-4" />
+              {isSignup ? 'Create account' : 'Sign in'}
             </Button>
           </form>
-          <div className="my-5 flex items-center gap-3 text-xs text-ink-500">
+          <div className="my-5 flex items-center gap-3 text-xs text-baize-500">
             <div className="h-px flex-1 bg-white/8" /> or <div className="h-px flex-1 bg-white/8" />
           </div>
           <Button className="w-full" loading={busy === 'guest'} onClick={() => run('guest', playAsGuest)}>
             <UserRound className="size-4" /> Continue as guest
           </Button>
         </Card>
-        <p className="mt-6 text-center text-sm text-ink-400">
+        <p className="mt-6 text-sm text-baize-400">
           {isSignup ? 'Already have an account?' : 'New to Gambit?'}{' '}
-          <Link to={`${isSignup ? '/login' : '/signup'}${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`} className="font-semibold text-gold-300 hover:text-gold-200">
+          <Link to={`${isSignup ? '/login' : '/signup'}${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`} className="font-semibold text-baize-100 underline underline-offset-4">
             {isSignup ? 'Sign in' : 'Create an account'}
           </Link>
         </p>
@@ -87,14 +85,14 @@ export default function Auth({ mode }: { mode: 'login' | 'signup' }) {
 function Field({ label, value, onChange, type = 'text', autoComplete, autoFocus }: { label: string; value: string; onChange: (v: string) => void; type?: string; autoComplete?: string; autoFocus?: boolean }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-400">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-baize-300">{label}</span>
       <input
         type={type}
         value={value}
         autoComplete={autoComplete}
         autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
-        className="h-11 w-full rounded-xl bg-ink-950/60 px-3.5 text-[15px] ring-1 ring-white/10 transition placeholder:text-ink-500 focus:outline-none focus:ring-2 focus:ring-gold-400/60"
+        className="h-12 w-full rounded-xl bg-baize-950/50 px-4 text-[16px] shadow-[inset_0_2px_4px_rgb(0_0_0/0.3)] transition placeholder:text-baize-500 focus:outline-none focus:ring-2 focus:ring-chalk-400/60"
       />
     </label>
   )
