@@ -1,0 +1,40 @@
+const TOKEN_KEY = 'gambit.token'
+
+export const tokenStore = {
+  get: () => localStorage.getItem(TOKEN_KEY),
+  set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
+  clear: () => localStorage.removeItem(TOKEN_KEY),
+}
+
+export class ApiError extends Error {
+  readonly status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  const token = tokenStore.get()
+  let res: Response
+  try {
+    res = await fetch(`/api${path}`, {
+      method: init.method ?? (init.body ? 'POST' : 'GET'),
+      headers: {
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: init.body ? JSON.stringify(init.body) : undefined,
+    })
+  } catch {
+    throw new ApiError(0, "Can't reach the server. Is it running?")
+  }
+  const json = (await res.json().catch(() => null)) as { ok: boolean; data?: T; error?: string } | null
+  if (!res.ok || !json?.ok) throw new ApiError(res.status, json?.error ?? `Request failed (${res.status})`)
+  return json.data as T
+}
+
+export function wsUrl(token: string): string {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${proto}://${location.host}/ws?token=${encodeURIComponent(token)}`
+}
