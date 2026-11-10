@@ -496,13 +496,14 @@ export class GameManager {
   }
 
   async stats() {
-    const [online, playing, waiting, instances] = await Promise.all([
+    const [online, playing, waitingBy, instances] = await Promise.all([
       presence.onlineCount(),
       games.liveCount(),
       queue.waiting(TIME_CONTROLS),
       presence.aliveInstances(),
     ]);
-    return { online, playing, waiting, instances: instances.length };
+    const waiting = Object.values(waitingBy).reduce((a, b) => a + b, 0);
+    return { online, playing, waiting, waitingBy, instances: instances.length };
   }
 
   isOnline(userId: string): Promise<boolean> {

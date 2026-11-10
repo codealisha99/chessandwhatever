@@ -132,6 +132,7 @@ test("players on different instances play, spectate, and survive the owner crash
   // matchmaking across instances
   ca.send({ type: "queue", tc: "3+2" });
   await ca.next("lobby", (m) => m.queuedFor === "3+2");
+  assert.deepEqual((await api(B, "/stats")).waitingBy, { "3+2": 1 }, "queue counts are per time control and cluster-wide");
   cb.send({ type: "queue", tc: "3+2" });
   const ga = (await ca.next("game_state")).game;
   const gb = (await cb.next("game_state")).game;

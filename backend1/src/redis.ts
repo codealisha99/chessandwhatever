@@ -208,9 +208,10 @@ export const queue = {
     if (tc) await redis.multi().lrem(K.queue(tc), 0, uid).del(K.userQueue(uid)).exec();
   },
   of: (uid: string) => redis.get(K.userQueue(uid)),
-  async waiting(tcs: readonly string[]): Promise<number> {
+  /** players waiting per time control, e.g. { "5+3": 1 } (only non-empty queues) */
+  async waiting(tcs: readonly string[]): Promise<Record<string, number>> {
     const lens = await Promise.all(tcs.map((tc) => redis.llen(K.queue(tc))));
-    return lens.reduce((a, b) => a + b, 0);
+    return Object.fromEntries(tcs.map((tc, i) => [tc, lens[i]!] as const).filter(([, n]) => n > 0));
   },
 };
 
