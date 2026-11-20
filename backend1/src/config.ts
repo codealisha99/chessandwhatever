@@ -53,4 +53,12 @@ export const config = {
   /** an instance must renew game ownership within this window or another instance takes the game over */
   leaseMs: Number(process.env.LEASE_MS ?? 15_000),
   heartbeatMs: Number(process.env.HEARTBEAT_MS ?? 5_000),
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
+  frontendUrl: (process.env.FRONTEND_URL ?? "http://localhost:5173").replace(/\/$/, ""),
+  emailProvider: process.env.EMAIL_PROVIDER ?? "development",
+  guestRetentionDays: Number(process.env.GUEST_RETENTION_DAYS ?? 7),
+  ticketTtlMs: 30_000,
+  resetTokenTtlMs: 15 * 60_000,
 };

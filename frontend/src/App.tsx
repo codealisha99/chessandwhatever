@@ -17,6 +17,9 @@ const Watch = lazy(() => import('./pages/Watch'))
 const Leaderboard = lazy(() => import('./pages/Leaderboard'))
 const Profile = lazy(() => import('./pages/Profile'))
 const NotFound = lazy(() => import('./pages/NotFound'))
+const AuthCallback = lazy(() => import('./pages/AuthCallback'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 
 export default function App() {
   return (
@@ -30,6 +33,9 @@ export default function App() {
                   <Route index element={<Home />} />
                   <Route path="login" element={<Auth mode="login" />} />
                   <Route path="signup" element={<Auth mode="signup" />} />
+                  <Route path="auth/callback" element={<AuthCallback />} />
+                  <Route path="forgot-password" element={<ForgotPassword />} />
+                  <Route path="reset-password" element={<ResetPassword />} />
                   <Route path="play/:id" element={<LiveGame />} />
                   <Route path="join/:code" element={<Join />} />
                   <Route path="computer" element={<Computer />} />
@@ -43,6 +49,7 @@ export default function App() {
               </Routes>
             </Suspense>
           </OnlineProvider>
+
         </AuthProvider>
       </SettingsProvider>
     </BrowserRouter>

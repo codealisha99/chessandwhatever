@@ -19,7 +19,12 @@ export class ApiError extends Error {
  * Vercel rewrite: behind a rewrite the server only sees Vercel's IPs, which defeats per-client rate limits.
  * Empty = same-origin (Vite dev proxy, or the server serving the SPA itself).
  */
-const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+
+export function getGoogleAuthUrl(): string {
+  return `${API_BASE}/api/auth/google`
+}
+
 
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const token = tokenStore.get()
@@ -41,12 +46,18 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   return json.data as T
 }
 
+export async function getWsTicket(): Promise<string> {
+  const res = await api<{ ticket: string; expiresIn: number }>('/auth/ticket', { method: 'POST' })
+  return res.ticket
+}
+
 /**
  * WebSocket endpoint. Static hosts like Vercel can't proxy WebSockets, so production builds point
  * straight at the game server via VITE_WS_URL (e.g. wss://gambit-server-production.up.railway.app/ws).
  * Without it we use same-origin /ws (Vite dev proxy, or the server serving the SPA itself).
  */
-export function wsUrl(token: string): string {
+export function wsUrl(ticketOrToken: string, isTicket: boolean = true): string {
   const base = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`
-  return `${base}?token=${encodeURIComponent(token)}`
+  return `${base}?${isTicket ? 'ticket' : 'token'}=${encodeURIComponent(ticketOrToken)}`
 }
+

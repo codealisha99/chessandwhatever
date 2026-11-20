@@ -45,6 +45,7 @@ export class GameManager {
   private watching = new Map<WebSocket, string>();
   private watchHandlers = new Map<string, (raw: string) => void>();
   private buckets = new WeakMap<WebSocket, Bucket>();
+  private sessionBySocket = new WeakMap<WebSocket, string>();
   private owned = new Map<string, Game>();
   private outbox = new Map<string, Promise<void>>();
   private timer: NodeJS.Timeout | null = null;
@@ -63,8 +64,9 @@ export class GameManager {
 
   // ---------- connections ----------
 
-  connect(ws: WebSocket, userId: string): void {
+  connect(ws: WebSocket, userId: string, sessionId?: string): void {
     this.buckets.set(ws, { tokens: RATE_PER_SEC, last: Date.now(), strikes: 0 });
+    if (sessionId) this.sessionBySocket.set(ws, sessionId);
     // serialise this socket's messages behind its setup, so nothing is processed before we're subscribed
     let chain: Promise<void> = this.attach(ws, userId).catch((err) => {
       log.error("socket setup failed", err);
@@ -86,12 +88,30 @@ export class GameManager {
     });
   }
 
+  revokeUserSessions(userId: string, sessionId?: string): void {
+    bus.publish(CH.user(userId), JSON.stringify({ type: "session_revoked", sessionId }));
+  }
+
   private async attach(ws: WebSocket, userId: string): Promise<void> {
     let set = this.sockets.get(userId);
     if (!set) {
       set = new Set();
       this.sockets.set(userId, set);
       const forward = (raw: string) => {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object" && parsed.type === "session_revoked") {
+            const sid = parsed.sessionId;
+            for (const s of this.sockets.get(userId) ?? []) {
+              if (!sid || this.sessionBySocket.get(s) === sid) {
+                s.close(1008, "Session revoked");
+              }
+            }
+            return;
+          }
+        } catch {
+          /* pass through */
+        }
         for (const s of this.sockets.get(userId) ?? []) this.sendRaw(s, raw);
       };
       this.userHandlers.set(userId, forward);

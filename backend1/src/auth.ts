@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { config } from "./config.ts";
 
@@ -21,13 +21,24 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 const sign = (data: string) => createHmac("sha256", config.authSecret).update(data).digest("base64url");
 
+export interface TokenPayload {
+  sub: string;
+  sid?: string;
+  exp: number;
+}
+
 /** Compact signed token: base64url(json).signature */
-export function issueToken(userId: string): string {
-  const body = Buffer.from(JSON.stringify({ sub: userId, exp: Date.now() + config.tokenTtlMs })).toString("base64url");
+export function issueToken(userId: string, sessionId?: string): string {
+  const payload: TokenPayload = {
+    sub: userId,
+    exp: Date.now() + config.tokenTtlMs,
+  };
+  if (sessionId) payload.sid = sessionId;
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return `${body}.${sign(body)}`;
 }
 
-export function verifyToken(token: string | null | undefined): string | null {
+export function verifyToken(token: string | null | undefined): { userId: string; sessionId?: string } | null {
   if (!token) return null;
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
@@ -35,8 +46,10 @@ export function verifyToken(token: string | null | undefined): string | null {
   const given = Buffer.from(sig);
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
   try {
-    const { sub, exp } = JSON.parse(Buffer.from(body, "base64url").toString()) as { sub?: unknown; exp?: unknown };
-    return typeof sub === "string" && typeof exp === "number" && exp > Date.now() ? sub : null;
+    const { sub, sid, exp } = JSON.parse(Buffer.from(body, "base64url").toString()) as { sub?: unknown; sid?: unknown; exp?: unknown };
+    return typeof sub === "string" && typeof exp === "number" && exp > Date.now()
+      ? { userId: sub, sessionId: typeof sid === "string" ? sid : undefined }
+      : null;
   } catch {
     return null;
   }
@@ -45,3 +58,9 @@ export function verifyToken(token: string | null | undefined): string | null {
 export const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 export const PASSWORD_MIN = 6;
 export const PASSWORD_MAX = 128;
+
+export function hashResetToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+

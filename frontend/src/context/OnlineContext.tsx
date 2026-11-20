@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { wsUrl } from '../lib/api'
+import { getWsTicket, wsUrl } from '../lib/api'
 import { playSound, soundForSan } from '../lib/sound'
 import type { ChatLine, Clocks, Color, GameResult, GameView, Room, WireMove } from '../lib/types'
 import { useAuth } from './AuthContext'
@@ -210,9 +210,22 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
     let retryTimer: ReturnType<typeof setTimeout> | undefined
     let pingTimer: ReturnType<typeof setInterval> | undefined
 
-    const open = () => {
+    const open = async () => {
+      if (stopped) return
       setStatus('connecting')
-      const ws = new WebSocket(wsUrl(token))
+      let ticket: string | null = null
+      try {
+        ticket = await getWsTicket()
+      } catch {
+        if (stopped) return
+        setStatus('connecting')
+        if (attempt >= 2) void refresh()
+        retryTimer = setTimeout(open, BACKOFF_MS[Math.min(attempt++, BACKOFF_MS.length - 1)])
+        return
+      }
+
+      if (stopped) return
+      const ws = new WebSocket(wsUrl(ticket, true))
       wsRef.current = ws
       ws.onopen = () => {
         attempt = 0
@@ -240,7 +253,8 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
         retryTimer = setTimeout(open, BACKOFF_MS[Math.min(attempt++, BACKOFF_MS.length - 1)])
       }
     }
-    open()
+    void open()
+
     return () => {
       stopped = true
       clearTimeout(retryTimer)

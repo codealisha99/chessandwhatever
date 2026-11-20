@@ -14,8 +14,10 @@ interface AuthValue {
   login: (username: string, password: string) => Promise<void>
   signup: (username: string, password: string) => Promise<void>
   playAsGuest: () => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
+  logoutAll: () => Promise<void>
   refresh: () => Promise<void>
+  setAuthToken: (token: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthValue | null>(null)
@@ -31,10 +33,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(s.user)
   }, [])
 
-  const logout = useCallback(() => {
-    tokenStore.clear()
-    setToken(null)
-    setUser(null)
+  const logout = useCallback(async () => {
+    try {
+      if (tokenStore.get()) {
+        await api('/auth/logout', { method: 'POST' })
+      }
+    } catch {
+      /* ignore server failure on logout */
+    } finally {
+      tokenStore.clear()
+      setToken(null)
+      setUser(null)
+    }
+  }, [])
+
+  const logoutAll = useCallback(async () => {
+    try {
+      if (tokenStore.get()) {
+        await api('/auth/logout-all', { method: 'POST' })
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      tokenStore.clear()
+      setToken(null)
+      setUser(null)
+    }
   }, [])
 
   const refresh = useCallback(async () => {
@@ -42,9 +66,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setUser(await api<User>('/me'))
     } catch (err) {
-      if ((err as { status?: number }).status === 401) logout()
+      if ((err as { status?: number }).status === 401) {
+        tokenStore.clear()
+        setToken(null)
+        setUser(null)
+      }
     }
-  }, [logout])
+  }, [])
+
+  const setAuthToken = useCallback(async (newToken: string) => {
+    tokenStore.set(newToken)
+    setToken(newToken)
+    try {
+      const u = await api<User>('/me')
+      setUser(u)
+    } catch {
+      tokenStore.clear()
+      setToken(null)
+      setUser(null)
+    }
+  }, [])
 
   useEffect(() => {
     if (!token) return
@@ -62,9 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signup: async (username, password) => adopt(await api<Session>('/auth/signup', { body: { username, password } })),
       playAsGuest: async () => adopt(await api<Session>('/auth/guest', { method: 'POST', body: {} })),
       logout,
+      logoutAll,
       refresh,
+      setAuthToken,
     }),
-    [user, token, loading, adopt, logout, refresh],
+    [user, token, loading, adopt, logout, logoutAll, refresh, setAuthToken],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

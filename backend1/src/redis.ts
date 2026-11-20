@@ -34,12 +34,17 @@ export const K = {
   watchers: (gid: string) => `${P}game:${gid}:watchers`,
   live: `${P}live`,
   rate: (bucket: string, id: string) => `${P}rl:${bucket}:${id}`,
+  ticket: (t: string) => `${P}ticket:${t}`,
+  sessionRevoked: (sid: string) => `${P}sess:rev:${sid}`,
+  oauthState: (s: string) => `${P}oauth:state:${s}`,
 };
 export const CH = {
   user: (uid: string) => `${P}ch:user:${uid}`,
   watch: (gid: string) => `${P}ch:watch:${gid}`,
   instance: (iid: string) => `${P}ch:instance:${iid}`,
 };
+export const KEYS = K;
+
 
 const ACTIVE_GAME_TTL_MS = 6 * 3600_000;
 const FINISHED_GAME_TTL_MS = 15 * 60_000;

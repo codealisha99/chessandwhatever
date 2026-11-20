@@ -1,13 +1,24 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { createReadStream, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, normalize, sep } from "node:path";
-import { hashPassword, issueToken, PASSWORD_MAX, PASSWORD_MIN, USERNAME_RE, verifyPassword, verifyToken } from "./auth.ts";
+import {
+  hashPassword,
+  hashResetToken,
+  issueToken,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+  USERNAME_RE,
+  verifyPassword,
+  verifyToken,
+} from "./auth.ts";
 import { config } from "./config.ts";
-import { repo, type GameRecord, type User } from "./db.ts";
+import { repo, type GameRecord, type Session, type User } from "./db.ts";
+import { emailService } from "./email.ts";
 import type { GameManager } from "./GameManager.ts";
 import { log } from "./logger.ts";
-import { rateLimited } from "./redis.ts";
+import { createAuthorizationRequest, exchangeAndVerifyCode } from "./oauth.ts";
+import { KEYS, rateLimited, redis } from "./redis.ts";
 
 type Json = Record<string, unknown> | unknown[];
 
@@ -62,11 +73,30 @@ function send(res: ServerResponse, status: number, body: Json): void {
 
 const ok = (res: ServerResponse, data: unknown) => send(res, 200, { ok: true, data });
 
-async function authUser(req: IncomingMessage): Promise<User> {
+async function authSession(req: IncomingMessage): Promise<{ user: User; session: Session }> {
   const header = req.headers.authorization ?? "";
-  const userId = verifyToken(header.startsWith("Bearer ") ? header.slice(7) : null);
-  const user = userId ? await repo.findUserById(userId) : null;
-  if (!user) throw new HttpError(401, "Please sign in again.");
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const verified = verifyToken(token);
+  if (!verified) throw new HttpError(401, "Please sign in again.");
+
+  const user = await repo.findUserById(verified.userId);
+  if (!user) throw new HttpError(401, "User not found.");
+
+  if (verified.sessionId) {
+    const active = await repo.isSessionActive(verified.sessionId);
+    if (!active) throw new HttpError(401, "Session has been revoked or expired.");
+    const sess = await repo.findSession(verified.sessionId);
+    if (!sess) throw new HttpError(401, "Session not found.");
+    return { user, session: sess };
+  }
+
+  // Fallback for legacy tokens without sessionId
+  const sess = await repo.createSession(randomUUID(), user.id, clientIp(req), (req.headers["user-agent"] as string) ?? null);
+  return { user, session: sess };
+}
+
+async function authUser(req: IncomingMessage): Promise<User> {
+  const { user } = await authSession(req);
   return user;
 }
 
@@ -80,7 +110,11 @@ function credentials(body: Record<string, unknown>): { username: string; passwor
   return { username, password };
 }
 
-const session = (user: User) => ({ token: issueToken(user.id), user });
+async function createAuthSession(user: User, req: IncomingMessage) {
+  const sess = await repo.createSession(randomUUID(), user.id, clientIp(req), (req.headers["user-agent"] as string) ?? null);
+  const token = issueToken(user.id, sess.id);
+  return { token, user };
+}
 
 const gameSummary = (g: GameRecord) => {
   const { moves, pgn, ...rest } = g;
@@ -97,7 +131,7 @@ export function createHttpHandler(manager: GameManager) {
       if (/^guest_/i.test(username)) throw new HttpError(400, "That username is reserved.");
       const user = await repo.createUser(randomUUID(), username, await hashPassword(password));
       if (!user) throw new HttpError(409, "That username is taken.");
-      ok(res, session(user));
+      ok(res, await createAuthSession(user, req));
     }],
     ["POST", /^\/api\/auth\/login$/, async (req, res) => {
       await rateLimitAuth(req);
@@ -108,17 +142,174 @@ export function createHttpHandler(manager: GameManager) {
       if (!creds || !(await verifyPassword(password, creds.passwordHash))) {
         throw new HttpError(401, "Wrong username or password.");
       }
-      ok(res, session((await repo.findUserById(creds.id))!));
+      const user = await repo.findUserById(creds.id);
+      if (!user) throw new HttpError(401, "Wrong username or password.");
+      ok(res, await createAuthSession(user, req));
     }],
     ["POST", /^\/api\/auth\/guest$/, async (req, res) => {
       await rateLimitAuth(req);
       for (let i = 0; i < 5; i++) {
         const user = await repo.createUser(randomUUID(), `Guest_${Math.floor(Math.random() * 1e6)}`, null);
-        if (user) return ok(res, session(user));
+        if (user) return ok(res, await createAuthSession(user, req));
       }
       throw new HttpError(503, "Could not create a guest account. Try again.");
     }],
+    ["POST", /^\/api\/auth\/ticket$/, async (req, res) => {
+      const { user, session } = await authSession(req);
+      const ticket = randomUUID();
+      const ttlSeconds = Math.max(1, Math.ceil(config.ticketTtlMs / 1000));
+      await redis.set(
+        KEYS.ticket(ticket),
+        JSON.stringify({ userId: user.id, sessionId: session.id }),
+        "EX",
+        ttlSeconds,
+      );
+      ok(res, { ticket, expiresIn: ttlSeconds });
+    }],
+    ["POST", /^\/api\/auth\/logout$/, async (req, res) => {
+      const { user, session } = await authSession(req);
+      await repo.revokeSession(session.id);
+      await manager.revokeUserSessions(user.id, session.id);
+      ok(res, { message: "Logged out successfully" });
+    }],
+    ["POST", /^\/api\/auth\/logout-all$/, async (req, res) => {
+      const { user } = await authSession(req);
+      await repo.revokeAllUserSessions(user.id);
+      await manager.revokeUserSessions(user.id);
+      ok(res, { message: "All sessions logged out successfully" });
+    }],
+    ["GET", /^\/api\/auth\/google$/, async (req, res) => {
+      const url = new URL(req.url ?? "/", "http://localhost");
+      const authReq = await createAuthorizationRequest();
+      if (url.searchParams.get("format") === "json") {
+        return ok(res, { url: authReq.url });
+      }
+      res.writeHead(302, { Location: authReq.url });
+      res.end();
+    }],
+    ["GET", /^\/api\/auth\/google\/callback$/, async (req, res) => {
+      const url = new URL(req.url ?? "/", "http://localhost");
+      const code = url.searchParams.get("code");
+      const state = url.searchParams.get("state");
+      const error = url.searchParams.get("error");
+
+      if (error) {
+        res.writeHead(302, { Location: `${config.frontendUrl}/auth?error=${encodeURIComponent(error)}` });
+        return res.end();
+      }
+      if (!code || !state) {
+        res.writeHead(302, { Location: `${config.frontendUrl}/auth?error=${encodeURIComponent("Missing authorization code or state")}` });
+        return res.end();
+      }
+
+      try {
+        const payload = await exchangeAndVerifyCode(code, state);
+        if (!payload.sub) {
+          throw new Error("Invalid ID token: missing sub");
+        }
+
+        let user: User | null = null;
+        const identity = await repo.findProviderIdentity("google", payload.sub);
+        if (identity) {
+          user = await repo.findUserById(identity.userId);
+        } else if (payload.email && payload.email_verified) {
+          // Auto-link if verified email matches existing account
+          const existingUser = await repo.findUserByEmail(payload.email);
+          if (existingUser) {
+            await repo.createProviderIdentity(randomUUID(), existingUser.id, "google", payload.sub, payload.email);
+            user = existingUser;
+          }
+        }
+
+        if (!user) {
+          let baseName = (payload.name || (payload.email ? payload.email.split("@")[0] : "Player"))
+            .replace(/[^a-zA-Z0-9_]/g, "_")
+            .slice(0, 15);
+          if (baseName.length < 3) baseName = `user_${baseName}`;
+          let created: User | null = null;
+          for (let i = 0; i < 5; i++) {
+            const candidate = i === 0 ? baseName : `${baseName}_${Math.floor(Math.random() * 1000)}`;
+            created = await repo.createUser(randomUUID(), candidate, null, payload.email ?? undefined);
+            if (created) break;
+          }
+          if (!created) {
+            throw new Error("Failed to generate unique username for OAuth account");
+          }
+          await repo.createProviderIdentity(randomUUID(), created.id, "google", payload.sub, payload.email);
+          user = created;
+        }
+
+        const authData = await createAuthSession(user, req);
+        res.writeHead(302, {
+          Location: `${config.frontendUrl}/auth/callback?token=${encodeURIComponent(authData.token)}`,
+        });
+        res.end();
+      } catch (err: any) {
+        log.error("Google OAuth callback error", err);
+        res.writeHead(302, {
+          Location: `${config.frontendUrl}/auth?error=${encodeURIComponent(err.message || "OAuth authentication failed")}`,
+        });
+        res.end();
+      }
+    }],
+    ["POST", /^\/api\/auth\/forgot-password$/, async (req, res) => {
+      await rateLimitAuth(req);
+      const body = await readJson(req);
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      if (email && email.includes("@")) {
+        const user = await repo.findUserByEmail(email);
+        if (user) {
+          const rawToken = randomBytes(32).toString("hex");
+          const hashed = hashResetToken(rawToken);
+          const expiresAt = new Date(Date.now() + config.resetTokenTtlMs);
+          await repo.createPasswordResetToken(randomUUID(), user.id, hashed, expiresAt);
+          await emailService.sendPasswordResetEmail(user.email ?? email, rawToken, user.username);
+        }
+      }
+      ok(res, { message: "If that email is registered, a password reset link has been sent." });
+    }],
+    ["POST", /^\/api\/auth\/reset-password$/, async (req, res) => {
+      await rateLimitAuth(req);
+      const body = await readJson(req);
+      const token = typeof body.token === "string" ? body.token.trim() : "";
+      const password = typeof body.password === "string" ? body.password : "";
+      if (!token) throw new HttpError(400, "Reset token is required.");
+      if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
+        throw new HttpError(400, `Password must be at least ${PASSWORD_MIN} characters.`);
+      }
+
+      const hashed = hashResetToken(token);
+      const tokenRecord = await repo.findValidResetToken(hashed);
+      if (!tokenRecord) {
+        throw new HttpError(400, "Invalid or expired reset token.");
+      }
+
+      const newHash = await hashPassword(password);
+      const updated = await repo.consumeResetTokenAndSetPassword(tokenRecord.id, tokenRecord.userId, newHash);
+      if (!updated) {
+        throw new HttpError(400, "Password reset failed. Please request a new link.");
+      }
+
+      await repo.revokeAllUserSessions(tokenRecord.userId);
+      await manager.revokeUserSessions(tokenRecord.userId);
+
+      ok(res, { message: "Password updated successfully. You can now sign in with your new password." });
+    }],
     ["GET", /^\/api\/me$/, async (req, res) => ok(res, await authUser(req))],
+    ["PATCH", /^\/api\/me$/, async (req, res) => {
+      const user = await authUser(req);
+      const body = await readJson(req);
+      if (typeof body.email === "string") {
+        const email = body.email.trim().toLowerCase();
+        if (!email.includes("@")) throw new HttpError(400, "Invalid email address.");
+        const existing = await repo.findUserByEmail(email);
+        if (existing && existing.id !== user.id) {
+          throw new HttpError(409, "Email is already associated with another account.");
+        }
+        await repo.setUserEmail(user.id, email);
+      }
+      ok(res, await repo.findUserById(user.id));
+    }],
     ["GET", /^\/api\/health$/, async (_req, res) => ok(res, { status: "ok", instance: config.instanceId, ...(await manager.stats()) })],
     ["GET", /^\/api\/stats$/, async (_req, res) => ok(res, { ...(await manager.stats()), ...(await repo.counts()) })],
     ["GET", /^\/api\/leaderboard$/, async (_req, res) => ok(res, await repo.leaderboard(100))],
@@ -141,13 +332,12 @@ export function createHttpHandler(manager: GameManager) {
       if (url.pathname.startsWith("/api/")) {
         const origin = req.headers.origin;
         if (origin && config.corsOrigins.has(origin)) {
-          // bearer tokens, no cookies: allowing the origin grants nothing a page couldn't already do
           res.setHeader("Access-Control-Allow-Origin", origin);
           res.setHeader("Vary", "Origin");
         }
         if (req.method === "OPTIONS") {
           res.writeHead(204, {
-            "Access-Control-Allow-Methods": "GET, POST",
+            "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization",
             "Access-Control-Max-Age": "600",
           });
