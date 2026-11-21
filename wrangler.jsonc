@@ -1,26 +1,28 @@
 {
-  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
-  "name": "gambit-backend",
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gambit",
   "main": "worker/index.ts",
-  "compatibility_date": "2024-11-01",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  "vars": {
-    "ENVIRONMENT": "production",
-    "ALLOWED_ORIGINS": "https://gambitchess.vercel.app,http://localhost:5173",
-    "BACKEND_ORIGIN": "https://backend-container.internal"
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/ws"]
   },
-  "observability": {
-    "enabled": true
-  }
-  /**
-   * Cloudflare Hyperdrive binding (uncomment and supply id when Hyperdrive is created):
-   * "hyperdrive": [
-   *   {
-   *     "binding": "HYPERDRIVE",
-   *     "id": "<YOUR_HYPERDRIVE_ID>"
-   *   }
-   * ]
-   */
+  "containers": [
+    {
+      "class_name": "GameServer",
+      "image": "./backend1/Dockerfile",
+      "image_build_context": "./backend1",
+      "instance_type": "basic",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "GAME", "class_name": "GameServer" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameServer"] }],
+  // public origin, used for password-reset links and the Google sign-in redirect
+  "vars": { "FRONTEND_URL": "https://gambit.codealisha99.workers.dev" },
+  "observability": { "enabled": true }
 }

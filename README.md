@@ -11,30 +11,31 @@ frontend/   React 19 + Vite + Tailwind v4 SPA
 
 | | |
 |---|---|
-| App (Vercel) | https://gambit-mocha.vercel.app |
-| Game server (Railway) | https://gambit-server-production.up.railway.app/api/health |
+| App + game server (Cloudflare) | https://gambit.codealisha99.workers.dev — Worker `gambit` (static SPA via Workers Assets, `/api` + `/ws` via a Cloudflare Container) |
 | Database | Neon Postgres, project `gambit` (`main` = production, `dev` = local/tests) |
-| Redis | Railway Redis, private network |
+| Redis | runs inside the game-server container (live state only) |
 
 ```
-browser ── https ──▶ Vercel (static SPA only)
-   ├────── https ──▶ Railway gambit-server /api ─┐
-   └────── wss ────▶ Railway gambit-server /ws ──┴─▶ Railway Redis (pub/sub, queues, live games)
-                                           └─▶ Neon Postgres (accounts, finished games)
+browser ── https/wss ──▶ Cloudflare Worker (worker/index.ts)
+   ├─ static files ──▶ Workers Assets (frontend/dist)
+   └─ /api, /ws ─────▶ Container "GameServer" (backend1/Dockerfile: Node + Redis) ──▶ Neon Postgres
 ```
 
-The browser talks to Railway directly for both the API (`VITE_API_URL`) and the WebSocket (`VITE_WS_URL`). Going through a Vercel rewrite would hide the client IP behind Vercel's rotating egress addresses and defeat the per-IP auth rate limit, so the server allows the frontend's origin via `CORS_ORIGINS` instead.
+Everything is same-origin, so no `VITE_API_URL`/`VITE_WS_URL` or `CORS_ORIGINS` is needed. The Worker sets `X-Forwarded-For` from `CF-Connecting-IP` so the per-IP auth rate limit sees the real client.
 
 ### Redeploy
 
+Pushing to `main` deploys automatically (`.github/workflows/deploy.yml`; repo secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`). By hand:
+
 ```bash
-cd backend1 && railway up --service gambit-server     # server (Dockerfile + railway.json)
-cd frontend && vercel deploy --prod                   # frontend (vercel.json)
+npm install && npm run deploy       # builds the SPA, builds/pushes the container (needs Docker running), deploys the Worker
+npx wrangler secret put DATABASE_URL  # Neon `main`, pooled
+npx wrangler secret put AUTH_SECRET
+npx wrangler secret put GOOGLE_CLIENT_ID      # optional: Google sign-in (+ GOOGLE_CLIENT_SECRET)
+npx wrangler tail                   # live logs
 ```
 
-Railway variables: `DATABASE_URL` (Neon `main`, pooled), `REDIS_URL=${{Redis.REDIS_URL}}`, `AUTH_SECRET`, `NODE_ENV=production`, `CORS_ORIGINS=https://gambit-mocha.vercel.app`.
-Vercel variables: `VITE_API_URL=https://gambit-server-production.up.railway.app`, `VITE_WS_URL=wss://gambit-server-production.up.railway.app/ws`. Preview deployments use other origins, so their API calls are refused unless added to `CORS_ORIGINS`.
-To scale the server, raise the replica count in Railway. Games are shared through Redis.
+One container instance runs with Redis inside it, so live games reset when it redeploys or sleeps after 2h idle. Accounts and finished games are safe in Neon. To scale out, point `REDIS_URL` at a managed Redis and raise `max_instances` in `wrangler.jsonc`.
 
 ## Run it locally
 
@@ -75,7 +76,7 @@ AUTH_SECRET=$(openssl rand -hex 32) npm start   # http://localhost:8080
 | `AUTH_SECRET` | dev: auto-generated in `data/` | **required** when `NODE_ENV=production` |
 | `DATABASE_URL` | *(required)* | Postgres / Neon connection string |
 | `CORS_ORIGINS` | *(empty: same-origin only)* | comma-separated browser origins allowed to call the API |
-| `TRUST_PROXY` | on in production | take the client IP from `X-Forwarded-For` (Vercel/Railway) |
+| `TRUST_PROXY` | on in production | take the client IP from `X-Forwarded-For` (the Cloudflare Worker sets it) |
 | `STATIC_DIR` | `frontend/dist` | built SPA to serve |
 | `BACKEND_URL` | `http://localhost:8080` | (frontend dev) proxy target |
 
