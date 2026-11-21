@@ -43,6 +43,7 @@ const deadline = (ms: number | null, now: number) => (ms === null ? null : now +
 const withTimes = (prev: LiveGame | undefined, game: GameView, now: number): LiveGame => ({
   ...prev,
   ...game,
+  chat: Array.isArray(game.chat) ? game.chat : (Array.isArray(prev?.chat) ? prev!.chat : []),
   clocksAt: now,
   abandonAt: { white: deadline(game.abandonMs.white, now), black: deadline(game.abandonMs.black, now) },
 })
@@ -105,7 +106,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
             setRoom(null)
             if (isNew && game.moves.length === 0) playSound('start')
             const target = `/play/${game.id}`
-            if (pathRef.current !== target) navigate(target)
+            if (pathRef.current !== target) navigate(target, { replace: pathRef.current.startsWith('/join/') })
           }
           return
         }
@@ -164,7 +165,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
         }
         case 'chat':
           if (!id) return
-          patchGame(id, (g) => ({ ...g, chat: [...g.chat, msg.line as ChatLine].slice(-50) }))
+          patchGame(id, (g) => ({ ...g, chat: [...(g.chat ?? []), msg.line as ChatLine].slice(-50) }))
           return
         case 'presence':
           if (!id) return

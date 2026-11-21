@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout } from './components/Layout'
 import { Spinner } from './components/ui'
 import { AuthProvider } from './context/AuthContext'
@@ -27,7 +28,8 @@ export default function App() {
       <SettingsProvider>
         <AuthProvider>
           <OnlineProvider>
-            <Suspense fallback={<div className="flex min-h-dvh items-center justify-center"><Spinner className="size-8" /></div>}>
+            <ErrorBoundary>
+              <Suspense fallback={<div className="flex min-h-dvh items-center justify-center"><Spinner className="size-8" /></div>}>
               <Routes>
                 <Route element={<Layout />}>
                   <Route index element={<Home />} />
@@ -48,6 +50,7 @@ export default function App() {
                 </Route>
               </Routes>
             </Suspense>
+            </ErrorBoundary>
           </OnlineProvider>
 
         </AuthProvider>

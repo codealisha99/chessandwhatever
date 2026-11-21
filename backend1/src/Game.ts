@@ -105,7 +105,7 @@ export function viewOf(s: GameSnapshot, forUser: string | null, spectators: numb
     result: s.result,
     drawOfferFrom: s.drawOfferFrom,
     rematchFrom: s.rematchFrom,
-    chat: s.chat,
+    chat: Array.isArray(s.chat) ? s.chat : [],
     connected: s.connected,
     abandonMs: { white: left(s.abandonAt.white), black: left(s.abandonAt.black) },
     spectators,
@@ -134,7 +134,10 @@ export class Game {
     const now = Date.now();
     this.s =
       "id" in init
-        ? structuredClone(init)
+        ? {
+            ...structuredClone(init),
+            chat: Array.isArray(init.chat) ? structuredClone(init.chat) : [],
+          }
         : {
             id: randomBytes(6).toString("base64url"),
             white: init.white,
@@ -346,7 +349,7 @@ export class Game {
     const c = this.colorOf(userId);
     if (!c) return;
     const line = { from: this.s[c].username, text, ts: Date.now() };
-    this.s.chat = [...this.s.chat, line].slice(-MAX_CHAT_HISTORY);
+    this.s.chat = [...(this.s.chat ?? []), line].slice(-MAX_CHAT_HISTORY);
     this.emit({ type: "chat", gameId: this.id, line });
   }
 

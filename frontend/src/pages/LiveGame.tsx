@@ -84,7 +84,25 @@ function GameScreen({ game }: { game: LiveGameState }) {
   const [flipped, setFlipped] = useState(false)
   const [cursor, setCursor] = useState<number | null>(null)
   const [showResult, setShowResult] = useState(false)
-  const [chatOpen, setChatOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem(`gambit_chat_${game.id}`) === '1'
+    } catch {
+      return false
+    }
+  })
+
+  const toggleChat = useCallback(() => {
+    setChatOpen((o) => {
+      const next = !o
+      try {
+        sessionStorage.setItem(`gambit_chat_${game.id}`, next ? '1' : '0')
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }, [game.id])
 
   const you = game.you
   const active = game.status === 'active'
@@ -203,7 +221,7 @@ function GameScreen({ game }: { game: LiveGameState }) {
               <IconBtn label="Flip board (F)" onClick={() => setFlipped((f) => !f)}>
                 <FlipVertical2 className="size-4" />
               </IconBtn>
-              <IconBtn label="Chat" onClick={() => setChatOpen((o) => !o)} active={chatOpen}>
+              <IconBtn label="Chat" onClick={toggleChat} active={chatOpen}>
                 <MessageSquare className="size-4" />
               </IconBtn>
             </div>
@@ -432,12 +450,13 @@ function Chat({ game }: { game: LiveGameState }) {
   const { send } = useOnline()
   const [text, setText] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
-  useEffect(() => endRef.current?.scrollIntoView({ block: 'end' }), [game.chat.length])
+  const chat = Array.isArray(game.chat) ? game.chat : []
+  useEffect(() => endRef.current?.scrollIntoView({ block: 'end' }), [chat.length])
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="scroll-thin min-h-[120px] flex-1 space-y-2 overflow-y-auto p-4 text-sm">
-        {game.chat.length === 0 && <div className="py-6 text-center text-ink-500">Say hi — be kind.</div>}
-        {game.chat.map((l, i) => (
+        {chat.length === 0 && <div className="py-6 text-center text-ink-500">Say hi — be kind.</div>}
+        {chat.map((l, i) => (
           <div key={i} className="break-words">
             <span className={`font-semibold ${l.from === game.white.username ? 'text-ink-100' : 'text-ink-400'}`}>{l.from}</span>{' '}
             <span className="text-ink-300">{l.text}</span>

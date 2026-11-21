@@ -165,3 +165,24 @@ test("a game restored from its snapshot keeps clocks and flags on time (instance
   assert.deepEqual([adopted.result?.winner, adopted.result?.reason], ["black", "timeout"]);
   assert.equal(finished.length, 1);
 });
+
+test("chat lines are recorded, emitted, and restored safely even if snapshot lacks chat", () => {
+  const { game, w, b, last } = ctx;
+  game.addChat(w, "Good luck!");
+  const chatMsg = last("chat") as { type: string; gameId: string; line: { from: string; text: string; ts: number } };
+  assert.equal(chatMsg.type, "chat");
+  assert.equal(chatMsg.gameId, game.id);
+  assert.equal(chatMsg.line.text, "Good luck!");
+  assert.equal(chatMsg.line.from, game.snapshot().white.username);
+  assert.equal(typeof chatMsg.line.ts, "number");
+  assert.equal(game.snapshot().chat.length, 1);
+
+  // Snapshot without chat field (legacy or corrupted)
+  const snap = JSON.parse(JSON.stringify(game.snapshot()));
+  delete snap.chat;
+  const restored = new Game(snap, () => {}, () => {});
+  assert.deepEqual(restored.snapshot().chat, []);
+  assert.doesNotThrow(() => restored.addChat(b, "Thanks, you too!"));
+  assert.equal(restored.snapshot().chat.length, 1);
+});
+

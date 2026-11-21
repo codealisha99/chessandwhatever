@@ -91,7 +91,8 @@ async function authSession(req: IncomingMessage): Promise<{ user: User; session:
   }
 
   // Fallback for legacy tokens without sessionId
-  const sess = await repo.createSession(randomUUID(), user.id, clientIp(req), (req.headers["user-agent"] as string) ?? null);
+  const expiresAt = Date.now() + config.tokenTtlMs;
+  const sess = await repo.createSession(randomUUID(), user.id, expiresAt, clientIp(req), (req.headers["user-agent"] as string) ?? null);
   return { user, session: sess };
 }
 
@@ -111,7 +112,8 @@ function credentials(body: Record<string, unknown>): { username: string; passwor
 }
 
 async function createAuthSession(user: User, req: IncomingMessage) {
-  const sess = await repo.createSession(randomUUID(), user.id, clientIp(req), (req.headers["user-agent"] as string) ?? null);
+  const expiresAt = Date.now() + config.tokenTtlMs;
+  const sess = await repo.createSession(randomUUID(), user.id, expiresAt, clientIp(req), (req.headers["user-agent"] as string) ?? null);
   const token = issueToken(user.id, sess.id);
   return { token, user };
 }
