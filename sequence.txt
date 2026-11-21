@@ -48,4 +48,12 @@ if the game is over send the updated board to both the players..
 for moves install chess.js and it will give the moves
 
 we updated the make move when the  message type will be MOVE then it will be see whouse turn its is it will update the board
+{
+    this is test in which we from hoppscotch see if the message are being seen from both the players or not 
+    and how r the moves recoreded. after this we will work on the board which is the frontend part of the game 
+}
 
+we install the react project and then we we install the tailwind and the react router dom 
+
+then we inculcate the browserrouter routes route and its path and create another folder in the src 
+which will contain scrrens folder which will have. a game.tsx and a landing.tsx
