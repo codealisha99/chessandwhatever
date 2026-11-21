@@ -4,7 +4,7 @@
  * Responsibilities:
  * 1. Global Anycast Edge entry point (low-latency TLS termination, DDoS mitigation, WAF).
  * 2. Instant edge CORS handling (0ms preflight OPTIONS responses without hitting backend).
- * 3. Transparent WebSocket proxying to containerized Node.js backend.
+ * 3. Bidirectional WebSocket proxying via WebSocketPair to containerized Node.js backend.
  * 4. REST API proxying with client IP attribution (CF-Connecting-IP forwarding).
  * 5. Hyperdrive connection string binding for PostgreSQL acceleration.
  */
@@ -68,7 +68,7 @@ function createCorsHeaders(origin: string | null): Headers {
 }
 
 export default {
-  async fetch(request: Request, env: Env, _ctx: unknown): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const originHeader = request.headers.get("Origin");
     const allowedOrigin = getAllowedOrigin(originHeader, env);
@@ -131,16 +131,102 @@ export default {
     reqHeaders.set("X-Forwarded-Proto", url.protocol.replace(":", ""));
     reqHeaders.set("X-Forwarded-Host", url.host);
 
-    // 6. Handle WebSocket Upgrade Request
+    // 6. Handle WebSocket Upgrade Request (Bidirectional Relay via WebSocketPair)
     const upgradeHeader = request.headers.get("Upgrade");
     if (upgradeHeader && upgradeHeader.toLowerCase() === "websocket") {
-      // Forward WebSocket upgrade directly to container
-      return fetch(targetUrl.toString(), {
-        method: request.method,
-        headers: reqHeaders,
-        // Passing request body as null for WebSocket handshake
-        body: null,
-      });
+      try {
+        const originResponse = await fetch(targetUrl.toString(), {
+          method: request.method,
+          headers: reqHeaders,
+        });
+
+        const originWs = originResponse.webSocket;
+        if (!originWs) {
+          // Upstream returned HTTP error (e.g. 401 Unauthorized or 404 Not Found)
+          return originResponse;
+        }
+
+        // Accept connection from worker to backend
+        originWs.accept();
+
+        // Create client-facing WebSocket pair
+        const pair = new WebSocketPair();
+        const clientSocket = pair[0];
+        const workerSocket = pair[1];
+
+        // Accept connection between worker and client
+        workerSocket.accept();
+
+        // Relay: Client -> Backend
+        workerSocket.addEventListener("message", (event: MessageEvent) => {
+          try {
+            originWs.send(event.data);
+          } catch {
+            try {
+              workerSocket.close(1011, "Failed to relay message to upstream");
+            } catch {}
+          }
+        });
+
+        // Relay: Backend -> Client
+        originWs.addEventListener("message", (event: MessageEvent) => {
+          try {
+            workerSocket.send(event.data);
+          } catch {
+            try {
+              originWs.close(1011, "Failed to relay message to client");
+            } catch {}
+          }
+        });
+
+        // Close propagation: Client closed -> close Backend
+        workerSocket.addEventListener("close", (event: CloseEvent) => {
+          try {
+            originWs.close(event.code, event.reason);
+          } catch {}
+        });
+
+        // Close propagation: Backend closed -> close Client
+        originWs.addEventListener("close", (event: CloseEvent) => {
+          try {
+            workerSocket.close(event.code, event.reason);
+          } catch {}
+        });
+
+        // Clean error handling to prevent orphaned connections
+        const onProxyError = () => {
+          try {
+            workerSocket.close(1011, "WebSocket proxy error");
+          } catch {}
+          try {
+            originWs.close(1011, "WebSocket proxy error");
+          } catch {}
+        };
+        workerSocket.addEventListener("error", onProxyError);
+        originWs.addEventListener("error", onProxyError);
+
+        // Return client-side socket to client with 101 Switching Protocols
+        return new Response(null, {
+          status: 101,
+          webSocket: clientSocket,
+        });
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        return new Response(
+          JSON.stringify({
+            error: "Bad Gateway",
+            message: "Failed to establish WebSocket connection with upstream backend container.",
+            detail: errorMsg,
+          }),
+          {
+            status: 502,
+            headers: {
+              "Content-Type": "application/json",
+              ...(allowedOrigin ? { "Access-Control-Allow-Origin": allowedOrigin } : {}),
+            },
+          }
+        );
+      }
     }
 
     // 7. Proxy standard HTTP/REST Requests

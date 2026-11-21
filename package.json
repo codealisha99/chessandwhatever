@@ -10,5 +10,9 @@
     "start": "NODE_ENV=production npm --prefix backend1 start",
     "test": "npm --prefix backend1 test",
     "typecheck": "npm --prefix backend1 run typecheck && cd frontend && npx tsc -b"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261121.1",
+    "wrangler": "^4.166.0"
   }
 }
