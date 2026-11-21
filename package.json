@@ -4,6 +4,7 @@
   "description": "Real-time multiplayer chess: rated games, private rooms, spectating, Stockfish practice and analysis",
   "scripts": {
     "setup": "npm --prefix backend1 install && npm --prefix frontend install",
+    "postinstall": "npm --prefix frontend install",
     "dev": "npm --prefix backend1 run dev & npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
     "start": "NODE_ENV=production npm --prefix backend1 start",
