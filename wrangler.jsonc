@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "gambit-backend",
+  "main": "worker/index.ts",
+  "compatibility_date": "2024-11-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "ALLOWED_ORIGINS": "https://gambitchess.vercel.app,http://localhost:5173",
+    "BACKEND_ORIGIN": "https://backend-container.internal"
+  },
+  "observability": {
+    "enabled": true
+  }
+  /**
+   * Cloudflare Hyperdrive binding (uncomment and supply id when Hyperdrive is created):
+   * "hyperdrive": [
+   *   {
+   *     "binding": "HYPERDRIVE",
+   *     "id": "<YOUR_HYPERDRIVE_ID>"
+   *   }
+   * ]
+   */
+}

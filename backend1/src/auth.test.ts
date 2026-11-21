@@ -40,7 +40,7 @@ test("JWT token issuance and verification with session ID", async () => {
   assert.equal(verified?.sessionId, sessionId);
 
   // Tampered payload
-  const [body, sig] = token.split(".");
+  const [, sig] = token.split(".");
   const tamperedBody = Buffer.from(JSON.stringify({ sub: "hacker", exp: Date.now() + 10000 })).toString("base64url");
   const tamperedToken = `${tamperedBody}.${sig}`;
   assert.equal(verifyToken(tamperedToken), null, "Tampered signature should fail verification");
@@ -67,6 +67,7 @@ test("Development email service captures reset emails in memory", async () => {
 
   assert.equal(emailService.sent.length, 1);
   const msg = emailService.sent[0];
+  assert.ok(msg, "Sent message should exist");
   assert.equal(msg.to, "player@example.com");
   assert.ok(msg.text.includes(rawToken), "Email text should contain reset token");
   assert.ok(msg.html.includes(rawToken), "Email HTML should contain reset token");
@@ -174,6 +175,7 @@ test("Google ID token verification with mock JWKS", async () => {
       "Should reject token with wrong audience"
     );
   } finally {
+    config.googleClientId = origClientId;
     setMockJwks(null);
   }
 });

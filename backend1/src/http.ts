@@ -197,11 +197,13 @@ export function createHttpHandler(manager: GameManager) {
 
       if (error) {
         res.writeHead(302, { Location: `${config.frontendUrl}/auth?error=${encodeURIComponent(error)}` });
-        return res.end();
+        res.end();
+        return;
       }
       if (!code || !state) {
         res.writeHead(302, { Location: `${config.frontendUrl}/auth?error=${encodeURIComponent("Missing authorization code or state")}` });
-        return res.end();
+        res.end();
+        return;
       }
 
       try {
@@ -214,17 +216,17 @@ export function createHttpHandler(manager: GameManager) {
         const identity = await repo.findProviderIdentity("google", payload.sub);
         if (identity) {
           user = await repo.findUserById(identity.userId);
-        } else if (payload.email && payload.email_verified) {
+        } else if (payload.email && payload.emailVerified) {
           // Auto-link if verified email matches existing account
           const existingUser = await repo.findUserByEmail(payload.email);
           if (existingUser) {
-            await repo.createProviderIdentity(randomUUID(), existingUser.id, "google", payload.sub, payload.email);
+            await repo.createProviderIdentity(randomUUID(), existingUser.id, "google", payload.sub, payload.email, payload.emailVerified);
             user = existingUser;
           }
         }
 
         if (!user) {
-          let baseName = (payload.name || (payload.email ? payload.email.split("@")[0] : "Player"))
+          let baseName = ((payload.name || (payload.email ? payload.email.split("@")[0] : "Player")) ?? "Player")
             .replace(/[^a-zA-Z0-9_]/g, "_")
             .slice(0, 15);
           if (baseName.length < 3) baseName = `user_${baseName}`;
@@ -237,7 +239,7 @@ export function createHttpHandler(manager: GameManager) {
           if (!created) {
             throw new Error("Failed to generate unique username for OAuth account");
           }
-          await repo.createProviderIdentity(randomUUID(), created.id, "google", payload.sub, payload.email);
+          await repo.createProviderIdentity(randomUUID(), created.id, "google", payload.sub, payload.email, payload.emailVerified);
           user = created;
         }
 
@@ -263,9 +265,10 @@ export function createHttpHandler(manager: GameManager) {
         if (user) {
           const rawToken = randomBytes(32).toString("hex");
           const hashed = hashResetToken(rawToken);
-          const expiresAt = new Date(Date.now() + config.resetTokenTtlMs);
+          const expiresAt = Date.now() + config.resetTokenTtlMs;
           await repo.createPasswordResetToken(randomUUID(), user.id, hashed, expiresAt);
-          await emailService.sendPasswordResetEmail(user.email ?? email, rawToken, user.username);
+          const resetUrl = `${config.frontendUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
+          await emailService.sendPasswordResetEmail(user.email ?? email, resetUrl);
         }
       }
       ok(res, { message: "If that email is registered, a password reset link has been sent." });
@@ -287,10 +290,7 @@ export function createHttpHandler(manager: GameManager) {
       }
 
       const newHash = await hashPassword(password);
-      const updated = await repo.consumeResetTokenAndSetPassword(tokenRecord.id, tokenRecord.userId, newHash);
-      if (!updated) {
-        throw new HttpError(400, "Password reset failed. Please request a new link.");
-      }
+      await repo.consumeResetTokenAndSetPassword(tokenRecord.id, tokenRecord.userId, newHash);
 
       await repo.revokeAllUserSessions(tokenRecord.userId);
       await manager.revokeUserSessions(tokenRecord.userId);
