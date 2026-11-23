@@ -820,34 +820,7 @@ Every key in Redis is partitioned by `config.redisPrefix` (`gambit:`):
 
 ---
 
-# PART 13: SYSTEM DESIGN FAILURE SCENARIOS
 
-The following catalog provides a rigorous failure-mode analysis of 42 distinct failure scenarios:
-
-### 1. Backend Instance Crashes Mid-Game
-- **Initial Conditions:** Game G1 active on Instance 1 (I1). Both players actively moving.
-- **Trigger:** I1 suffers kernel panic, hardware fault, or OOM kill.
-- **Propagation:** TCP sockets to I1 terminate. Browser enters `status: "connecting"`. I1's heartbeat expires in Redis after 15s.
-- **Symptoms:** Player clocks pause on client screens.
-- **Existing Protection:** Standby Instance 2 (I2) notices I1 is dead via `presence.aliveInstances()`. When Player A reconnects to I2, I2 calls `takeover(G1)`, executes `games.steal(G1, I1)`, loads snapshot `game:G1`, reconstructs `Game`, calculates elapsed epoch ms, and calls `game.resume()`. Clocks resume accurately.
-- **Data Integrity:** Zero data loss. All moves, chat, and clocks preserved in Redis.
-
-### 2. Both Players Submit Move at the Exact Same Millisecond
-- **Initial Conditions:** Black and White submit moves concurrently over WebSockets.
-- **Trigger:** High network latency creates simultaneous packet arrival at server.
-- **Existing Protection:** In `Game.ts:L248`, `this.turn` is strictly checked against `colorOf(userId)`. In `GameManager.ts:L79`, incoming messages on a socket are strictly serialized: `chain = chain.then(() => this.handle(...))`.
-- **Outcome:** The player whose turn it is has their move accepted. The out-of-turn move is rejected with `move_rejected` ("Not your turn"). Game state does not diverge.
-
-### 3. Redis Crashes While 500 Games Are Active
-- **Initial Conditions:** 500 active games running across 4 instances. Redis stops responding.
-- **Trigger:** Redis OOM, network partition, or managed instance restart.
-- **Failure Propagation:** Distributed lease renewal fails (`games.renew` returns false). Instance tick triggers `log.warn("lost ownership of game")`. WebSockets cannot authenticate new connections (`ticket` consumption fails).
-- **User Symptoms:** Moves submitted during the partition receive errors or stall.
-- **Recovery:** When Redis recovers, instances reconnect via `ioredis` retry strategy. If Redis retained data (AOF/RDB), games resume. If Redis restarted with empty memory, active games cannot be restored and abort.
-
-*(39 additional detailed failure scenarios are documented in full engineering specifications in the study text).*
-
----
 
 # PART 14: SCALABILITY AND CAPACITY ENGINEERING
 
@@ -906,23 +879,9 @@ Gambit provides structured JSON logging via `logger.ts` and health probes at `GE
 
 ---
 
-# PART 19: SYSTEM DESIGN BREAKAGE EXERCISES (EXCERPT)
 
-### Exercise 1: Split-Brain Game Clocks
-- **Scenario:** Network congestion delays Instance 1's lease renewal. Instance 2 believes I1 is dead and claims the lease.
-- **Architecture:** `game:{gid}:owner` has 15s TTL.
-- **What Happens:** In `GameManager.ts:L343`, I1 checks `await games.renew(gid)`. Because I2 took the lease, renew returns 0. I1 immediately logs `"lost ownership of game"`, calls `game.dispose()`, and terminates its timers. Only I2 runs the clock. Split-brain is prevented!
 
-### Exercise 2: Move In-Flight Disconnect
-- **Scenario:** Player A submits move; connection drops before server ACK arrives.
-- **Architecture:** Client uses optimistic UI with 4-second confirmation timer (`OnlineContext.tsx:L279`).
-- **What Happens:** If server never received the move, `confirmedRef` is not updated. After 4 seconds, the client sends `{ type: "spectate", gameId }`, fetches the authoritative server snapshot, and rolls back the unconfirmed move seamlessly.
-
-*(23 additional comprehensive engineering exercises with detailed answer keys are included in the complete study).*
-
----
-
-# PART 20: FINAL ARCHITECTURAL SYNTHESIS
+# : FINAL ARCHITECTURAL SYNTHESIS
 
 ### Engineering Maturity Assessment (1–5 Scale)
 - **Correctness: 5/5** — Move validation, clock decrementing, and Elo calculations strictly match FIDE rules.
@@ -934,10 +893,3 @@ Gambit provides structured JSON logging via `logger.ts` and health probes at `GE
 
 ---
 
-# HOW TO STUDY THIS SYSTEM: RECOMMENDED LEARNING SEQUENCE
-
-1. **Step 1: The Domain Core:** Study `backend1/src/Game.ts`. Understand how `chess.js`, turn clocks, epoch timestamps, and snapshot serializations work without any network dependencies.
-2. **Step 2: Concurrency & Atomicity:** Study `backend1/src/redis.ts`. Analyze the 4 custom Lua scripts (`matchPop`, `renewIfEquals`, `delIfEquals`, `swapIfEquals`). Learn why atomic script execution eliminates race conditions.
-3. **Step 3: Cluster Coordination:** Study `backend1/src/GameManager.ts`. Trace how distributed leases prevent split-brain clocks and how Redis Pub/Sub coordinates moves across disparate servers.
-4. **Step 4: Relational ACID Transactions:** Study `backend1/src/db.ts`. Observe how `pg_advisory_xact_lock` and `INSERT ... ON CONFLICT DO NOTHING` provide idempotency during server crashes.
-5. **Step 5: Real-Time Client State:** Study `frontend/src/context/OnlineContext.tsx`. Understand optimistic UI updates, ticket authentication, and how clients self-heal after network disconnects.
