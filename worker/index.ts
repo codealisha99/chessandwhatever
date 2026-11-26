@@ -6,7 +6,8 @@ interface Env {
   ASSETS: Fetcher;
   DATABASE_URL: string;
   AUTH_SECRET: string;
-  FRONTEND_URL: string;
+  FRONTEND_URL?: string;
+  ALLOWED_ORIGINS?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
 }
@@ -14,6 +15,46 @@ interface Env {
 const PORT = 8080;
 // 2 hours inactivity timeout before sleeping (live state is preserved in Redis while container is running)
 const INACTIVITY_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+
+function getAllowedOrigin(request: Request, env: Env): string | null {
+  const origin = request.headers.get("origin");
+  if (!origin) return "*";
+  const configured = (env.ALLOWED_ORIGINS ?? "https://gambit-mocha.vercel.app,https://chessandwhatever.codealisha99.workers.dev,http://localhost:5173")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  if (configured.includes(origin) || configured.includes("*")) {
+    return origin;
+  }
+  return null;
+}
+
+function handleCorsPreflight(request: Request, env: Env): Response {
+  const allowedOrigin = getAllowedOrigin(request, env) ?? "*";
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": allowedOrigin,
+      "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers") ?? "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+      "Vary": "Origin",
+    },
+  });
+}
+
+function addCorsHeaders(response: Response, request: Request, env: Env): Response {
+  const allowedOrigin = getAllowedOrigin(request, env);
+  if (!allowedOrigin) return response;
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", allowedOrigin);
+  headers.set("Vary", "Origin");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
 
 export class GameServer extends DurableObject<Env> {
   private starting: Promise<void> | undefined;
@@ -60,6 +101,8 @@ export class GameServer extends DurableObject<Env> {
   private async startAndWaitForPort(): Promise<void> {
     const container = this.ctx.container!;
     if (!container.running) {
+      const frontendUrl = this.env.FRONTEND_URL ?? "https://gambit-mocha.vercel.app";
+      const allowedOrigins = this.env.ALLOWED_ORIGINS ?? "https://gambit-mocha.vercel.app,https://chessandwhatever.codealisha99.workers.dev,http://localhost:5173";
       container.start({
         image: container.images.base,
         instance: "basic",
@@ -69,8 +112,9 @@ export class GameServer extends DurableObject<Env> {
           PORT: String(PORT),
           DATABASE_URL: this.env.DATABASE_URL,
           AUTH_SECRET: this.env.AUTH_SECRET,
-          FRONTEND_URL: this.env.FRONTEND_URL,
-          ...(this.env.GOOGLE_CLIENT_ID && { GOOGLE_REDIRECT_URI: `${this.env.FRONTEND_URL}/api/auth/google/callback` }),
+          FRONTEND_URL: frontendUrl,
+          CORS_ORIGINS: allowedOrigins,
+          ...(this.env.GOOGLE_CLIENT_ID && { GOOGLE_REDIRECT_URI: `${frontendUrl}/api/auth/google/callback` }),
           ...(this.env.GOOGLE_CLIENT_ID && { GOOGLE_CLIENT_ID: this.env.GOOGLE_CLIENT_ID }),
           ...(this.env.GOOGLE_CLIENT_SECRET && { GOOGLE_CLIENT_SECRET: this.env.GOOGLE_CLIENT_SECRET }),
         },
@@ -112,10 +156,31 @@ export class GameServer extends DurableObject<Env> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
+
+    // Serve static SPA assets if not /api/ and not /ws
     if (pathname !== "/ws" && !pathname.startsWith("/api/")) {
       return env.ASSETS.fetch(request);
     }
+
+    // Handle CORS preflight for /api/
+    if (request.method === "OPTIONS" && pathname.startsWith("/api/")) {
+      return handleCorsPreflight(request, env);
+    }
+
     const id = env.GAME.idFromName("main");
-    return env.GAME.get(id).fetch(request);
+    try {
+      const response = await env.GAME.get(id).fetch(request);
+      if (pathname.startsWith("/api/")) {
+        return addCorsHeaders(response, request, env);
+      }
+      return response;
+    } catch (err) {
+      console.error("GameServer error:", err);
+      const errorResponse = new Response(
+        JSON.stringify({ ok: false, error: "Game server is starting up or temporarily unavailable." }),
+        { status: 503, headers: { "Content-Type": "application/json" } }
+      );
+      return addCorsHeaders(errorResponse, request, env);
+    }
   },
 };

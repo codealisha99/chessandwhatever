@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "gambit",
+  "name": "chessandwhatever",
   "main": "worker/index.ts",
   "compatibility_date": "2026-11-01",
   "compatibility_flags": [
@@ -33,7 +33,9 @@
       "storage": "sqlite"
     }
   },
-  // public origin, used for password-reset links and the Google sign-in redirect
-  "vars": { "FRONTEND_URL": "https://gambit.codealisha99.workers.dev" },
+  "vars": {
+    "FRONTEND_URL": "https://gambit-mocha.vercel.app",
+    "ALLOWED_ORIGINS": "https://gambit-mocha.vercel.app,https://chessandwhatever.codealisha99.workers.dev,http://localhost:5173"
+  },
   "observability": { "enabled": true }
 }

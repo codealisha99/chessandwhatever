@@ -9,11 +9,12 @@
     "build": "npm --prefix frontend run build",
     "start": "NODE_ENV=production npm --prefix backend1 start",
     "test": "npm --prefix backend1 test",
-    "typecheck": "npm --prefix backend1 run typecheck && cd frontend && npx tsc -b && cd .. && npx tsc -p worker/tsconfig.json --noEmit",
+    "typecheck": "npm --prefix backend1 run typecheck && npm --prefix frontend run build && tsc -p worker/tsconfig.json --noEmit",
     "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261121.1",
+    "typescript": "^5.9.3",
     "wrangler": "^4.166.0"
   }
 }
