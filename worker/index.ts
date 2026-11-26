@@ -10,6 +10,7 @@ interface Env {
   ALLOWED_ORIGINS?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_REDIRECT_URI?: string;
 }
 
 const PORT = 8080;
@@ -114,7 +115,7 @@ export class GameServer extends DurableObject<Env> {
           AUTH_SECRET: this.env.AUTH_SECRET,
           FRONTEND_URL: frontendUrl,
           CORS_ORIGINS: allowedOrigins,
-          ...(this.env.GOOGLE_CLIENT_ID && { GOOGLE_REDIRECT_URI: `${frontendUrl}/api/auth/google/callback` }),
+          GOOGLE_REDIRECT_URI: this.env.GOOGLE_REDIRECT_URI ?? "https://chessandwhatever.codealisha99.workers.dev/api/auth/google/callback",
           ...(this.env.GOOGLE_CLIENT_ID && { GOOGLE_CLIENT_ID: this.env.GOOGLE_CLIENT_ID }),
           ...(this.env.GOOGLE_CLIENT_SECRET && { GOOGLE_CLIENT_SECRET: this.env.GOOGLE_CLIENT_SECRET }),
         },

@@ -35,7 +35,8 @@
   },
   "vars": {
     "FRONTEND_URL": "https://gambit-mocha.vercel.app",
-    "ALLOWED_ORIGINS": "https://gambit-mocha.vercel.app,https://chessandwhatever.codealisha99.workers.dev,http://localhost:5173"
+    "ALLOWED_ORIGINS": "https://gambit-mocha.vercel.app,https://chessandwhatever.codealisha99.workers.dev,http://localhost:5173",
+    "GOOGLE_REDIRECT_URI": "https://chessandwhatever.codealisha99.workers.dev/api/auth/google/callback"
   },
   "observability": { "enabled": true }
 }

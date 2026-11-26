@@ -17,7 +17,7 @@ import { repo, type GameRecord, type Session, type User } from "./db.ts";
 import { emailService } from "./email.ts";
 import type { GameManager } from "./GameManager.ts";
 import { log } from "./logger.ts";
-import { createAuthorizationRequest, exchangeAndVerifyCode } from "./oauth.ts";
+import { createAuthorizationRequest, createOAuthExchangeCode, exchangeAndVerifyCode, redeemOAuthExchangeCode } from "./oauth.ts";
 import { KEYS, rateLimited, redis } from "./redis.ts";
 
 type Json = Record<string, unknown> | unknown[];
@@ -189,6 +189,23 @@ export function createHttpHandler(manager: GameManager) {
       res.writeHead(302, { Location: authReq.url });
       res.end();
     }],
+    ["POST", /^\/api\/auth\/(?:google\/)?exchange$/, async (req, res) => {
+      await rateLimitAuth(req);
+      const body = await readJson(req);
+      const code = typeof body.code === "string" ? body.code.trim() : "";
+      if (!code || code.length > 256) {
+        throw new HttpError(400, "Authorization code is required.");
+      }
+      const data = await redeemOAuthExchangeCode(code);
+      if (!data) {
+        throw new HttpError(400, "Invalid, expired, or already used authorization code.");
+      }
+      const user = await repo.findUserById(data.userId);
+      if (!user) {
+        throw new HttpError(401, "User associated with this code no longer exists.");
+      }
+      ok(res, { token: data.token, user });
+    }],
     ["GET", /^\/api\/auth\/google\/callback$/, async (req, res) => {
       const url = new URL(req.url ?? "/", "http://localhost");
       const code = url.searchParams.get("code");
@@ -216,12 +233,22 @@ export function createHttpHandler(manager: GameManager) {
         const identity = await repo.findProviderIdentity("google", payload.sub);
         if (identity) {
           user = await repo.findUserById(identity.userId);
-        } else if (payload.email && payload.emailVerified) {
-          // Auto-link if verified email matches existing account
-          const existingUser = await repo.findUserByEmail(payload.email);
-          if (existingUser) {
-            await repo.createProviderIdentity(randomUUID(), existingUser.id, "google", payload.sub, payload.email, payload.emailVerified);
-            user = existingUser;
+        } else if (payload.email) {
+          if (!payload.emailVerified) {
+            throw new Error("Google email is not verified. Unverified emails cannot be used for authentication.");
+          }
+
+          // Option A: Automatically link an existing Gambit account if email ownership is verified
+          const verifiedUser = await repo.findVerifiedUserByEmail(payload.email);
+          if (verifiedUser) {
+            await repo.linkProviderIdentity(verifiedUser.id, "google", payload.sub, payload.email, true);
+            user = verifiedUser;
+          } else {
+            // Check if an unverified user claimed this email; do NOT link to unverified legacy accounts
+            const unverifiedUser = await repo.findUserByEmail(payload.email);
+            if (unverifiedUser) {
+              throw new Error("An account with this email already exists but is unverified. Please sign in with your username and password.");
+            }
           }
         }
 
@@ -233,19 +260,21 @@ export function createHttpHandler(manager: GameManager) {
           let created: User | null = null;
           for (let i = 0; i < 5; i++) {
             const candidate = i === 0 ? baseName : `${baseName}_${Math.floor(Math.random() * 1000)}`;
-            created = await repo.createUser(randomUUID(), candidate, null, payload.email ?? undefined);
+            created = await repo.createUser(randomUUID(), candidate, null, payload.email ?? undefined, Boolean(payload.emailVerified));
             if (created) break;
           }
           if (!created) {
             throw new Error("Failed to generate unique username for OAuth account");
           }
-          await repo.createProviderIdentity(randomUUID(), created.id, "google", payload.sub, payload.email, payload.emailVerified);
+          await repo.linkProviderIdentity(created.id, "google", payload.sub, payload.email, Boolean(payload.emailVerified));
           user = created;
         }
 
         const authData = await createAuthSession(user, req);
+        const exchangeCode = await createOAuthExchangeCode(authData.token, user.id);
+
         res.writeHead(302, {
-          Location: `${config.frontendUrl}/auth/callback?token=${encodeURIComponent(authData.token)}`,
+          Location: `${config.frontendUrl}/auth/callback?code=${encodeURIComponent(exchangeCode)}`,
         });
         res.end();
       } catch (err: any) {

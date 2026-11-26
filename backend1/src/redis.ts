@@ -37,6 +37,7 @@ export const K = {
   ticket: (t: string) => `${P}ticket:${t}`,
   sessionRevoked: (sid: string) => `${P}sess:rev:${sid}`,
   oauthState: (s: string) => `${P}oauth:state:${s}`,
+  oauthExchange: (hash: string) => `${P}oauth:exchange:${hash}`,
 };
 export const CH = {
   user: (uid: string) => `${P}ch:user:${uid}`,

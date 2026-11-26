@@ -55,7 +55,7 @@ export const config = {
   heartbeatMs: Number(process.env.HEARTBEAT_MS ?? 5_000),
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
+  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || "https://chessandwhatever.codealisha99.workers.dev/api/auth/google/callback",
   frontendUrl: (process.env.FRONTEND_URL ?? "http://localhost:5173").replace(/\/$/, ""),
   emailProvider: process.env.EMAIL_PROVIDER ?? "development",
   guestRetentionDays: Number(process.env.GUEST_RETENTION_DAYS ?? 7),

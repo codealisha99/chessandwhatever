@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { Spinner } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
+import { api } from '../lib/api'
 
 export default function AuthCallback() {
   const [params] = useSearchParams()
@@ -10,6 +11,7 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    const code = params.get('code')
     const token = params.get('token')
     const err = params.get('error')
 
@@ -18,18 +20,34 @@ export default function AuthCallback() {
       return
     }
 
-    if (!token) {
-      setError('No authentication token received.')
+    if (code) {
+      api<{ token: string }>('/auth/exchange', {
+        method: 'POST',
+        body: { code },
+      })
+        .then((data) => setAuthToken(data.token))
+        .then(() => {
+          navigate('/', { replace: true })
+        })
+        .catch((e: Error) => {
+          setError(e.message || 'Failed to exchange authorization code.')
+        })
       return
     }
 
-    setAuthToken(token)
-      .then(() => {
-        navigate('/', { replace: true })
-      })
-      .catch((e: Error) => {
-        setError(e.message || 'Failed to authenticate with token.')
-      })
+    // Fallback for direct token (backward compatibility)
+    if (token) {
+      setAuthToken(token)
+        .then(() => {
+          navigate('/', { replace: true })
+        })
+        .catch((e: Error) => {
+          setError(e.message || 'Failed to authenticate with token.')
+        })
+      return
+    }
+
+    setError('No authorization code or token received.')
   }, [params, setAuthToken, navigate])
 
   if (error) {

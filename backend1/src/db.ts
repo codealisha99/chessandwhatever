@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { config } from "./config.ts";
 import { log } from "./logger.ts";
@@ -7,6 +8,7 @@ export interface User {
   id: string;
   username: string;
   email?: string | null;
+  emailVerified?: boolean;
   rating: number;
   games: number;
   wins: number;
@@ -97,6 +99,7 @@ const SCHEMA = `
     created_at BIGINT NOT NULL
   );
   ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
   CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower ON users (lower(username));
   CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users (lower(email)) WHERE email IS NOT NULL;
   CREATE INDEX IF NOT EXISTS users_rating ON users (rating DESC) WHERE NOT is_guest;
@@ -188,6 +191,7 @@ const toUser = (r: Row): User => ({
   id: r.id as string,
   username: r.username as string,
   email: (r.email as string | null) ?? null,
+  emailVerified: Boolean(r.email_verified),
   rating: Number(r.rating),
   games: Number(r.games),
   wins: Number(r.wins),
@@ -237,7 +241,7 @@ const toGame = (r: Row): GameRecord => ({
   endedAt: Number(r.ended_at),
 });
 
-const USER_COLS = "id, username, email, rating, games, wins, losses, draws, is_guest, created_at";
+const USER_COLS = "id, username, email, COALESCE(email_verified, false) AS email_verified, rating, games, wins, losses, draws, is_guest, created_at";
 const GAME_SELECT = `
   SELECT g.*, w.username AS white_name, b.username AS black_name
   FROM games g JOIN users w ON w.id = g.white_id JOIN users b ON b.id = g.black_id`;
@@ -260,6 +264,29 @@ export const repo = {
     const r = await one(`SELECT ${USER_COLS} FROM users WHERE lower(email) = lower($1)`, [email]);
     return r ? toUser(r) : null;
   },
+  async findVerifiedUserByEmail(email: string): Promise<User | null> {
+    const normalized = email.trim().toLowerCase();
+    // 1. Direct match on users table where email_verified is true
+    const direct = await one(
+      `SELECT ${USER_COLS} FROM users WHERE lower(email) = $1 AND email_verified = TRUE`,
+      [normalized],
+    );
+    if (direct) return toUser(direct);
+
+    // 2. Match on provider_identities where email_verified is true
+    const viaProvider = await one(
+      `SELECT u.id, u.username, u.email, COALESCE(u.email_verified, false) AS email_verified,
+              u.rating, u.games, u.wins, u.losses, u.draws, u.is_guest, u.created_at
+       FROM users u
+       JOIN provider_identities p ON p.user_id = u.id
+       WHERE lower(p.email) = $1 AND p.email_verified = TRUE
+       LIMIT 1`,
+      [normalized],
+    );
+    if (viaProvider) return toUser(viaProvider);
+
+    return null;
+  },
   async setUserEmail(userId: string, email: string): Promise<void> {
     await pool.query(`UPDATE users SET email = $1 WHERE id = $2`, [email, userId]);
   },
@@ -268,11 +295,17 @@ export const repo = {
     return r ? { id: r.id as string, passwordHash: r.password_hash as string } : null;
   },
   /** Returns null when the username is taken (case-insensitive). */
-  async createUser(id: string, username: string, passwordHash: string | null, email: string | null = null): Promise<User | null> {
+  async createUser(
+    id: string,
+    username: string,
+    passwordHash: string | null,
+    email: string | null = null,
+    emailVerified: boolean = false,
+  ): Promise<User | null> {
     const r = await one(
-      `INSERT INTO users (id, username, password_hash, email, is_guest, created_at) VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO users (id, username, password_hash, email, email_verified, is_guest, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT DO NOTHING RETURNING ${USER_COLS}`,
-      [id, username, passwordHash, email, passwordHash === null, Date.now()],
+      [id, username, passwordHash, email, emailVerified, passwordHash === null, Date.now()],
     );
     return r ? toUser(r) : null;
   },
@@ -349,9 +382,79 @@ export const repo = {
     const res = await pool.query(`UPDATE sessions SET revoked_at = $1 WHERE user_id = $2 AND revoked_at IS NULL`, [Date.now(), userId]);
     return res.rowCount ?? 0;
   },
+  async findProviderIdentitiesForUser(userId: string, provider?: string): Promise<ProviderIdentity[]> {
+    const sql = provider
+      ? `SELECT * FROM provider_identities WHERE user_id = $1 AND provider = $2`
+      : `SELECT * FROM provider_identities WHERE user_id = $1`;
+    const params = provider ? [userId, provider] : [userId];
+    const { rows } = await pool.query(sql, params);
+    return (rows as Row[]).map(toProviderIdentity);
+  },
   async findProviderIdentity(provider: string, providerUserId: string): Promise<ProviderIdentity | null> {
     const r = await one(`SELECT * FROM provider_identities WHERE provider = $1 AND provider_user_id = $2`, [provider, providerUserId]);
     return r ? toProviderIdentity(r) : null;
+  },
+  async linkProviderIdentity(
+    userId: string,
+    provider: string,
+    providerUserId: string,
+    email: string | null,
+    emailVerified: boolean,
+  ): Promise<ProviderIdentity> {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Concurrency protection: lock target user row
+      const userRes = await client.query(`SELECT id, email, email_verified FROM users WHERE id = $1 FOR UPDATE`, [userId]);
+      if (userRes.rows.length === 0) {
+        throw new Error("User not found for account linking");
+      }
+
+      // Check if this provider identity already exists for another user
+      const existingIdentRes = await client.query(
+        `SELECT id, user_id FROM provider_identities WHERE provider = $1 AND provider_user_id = $2 FOR UPDATE`,
+        [provider, providerUserId]
+      );
+      if (existingIdentRes.rows.length > 0 && existingIdentRes.rows[0].user_id !== userId) {
+        throw new Error("This Google identity is already linked to another Gambit account");
+      }
+
+      // Check if user already has a different identity for this provider
+      const userIdentRes = await client.query(
+        `SELECT id, provider_user_id FROM provider_identities WHERE user_id = $1 AND provider = $2 FOR UPDATE`,
+        [userId, provider]
+      );
+      if (userIdentRes.rows.length > 0 && userIdentRes.rows[0].provider_user_id !== providerUserId) {
+        throw new Error("This Gambit account is already linked to a different Google account");
+      }
+
+      const now = Date.now();
+      const id = randomUUID();
+      const r = (await client.query(
+        `INSERT INTO provider_identities (id, user_id, provider, provider_user_id, email, email_verified, created_at, last_login_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (provider, provider_user_id) DO UPDATE SET last_login_at = $8, email = COALESCE(EXCLUDED.email, provider_identities.email), email_verified = EXCLUDED.email_verified
+         RETURNING *`,
+        [id, userId, provider, providerUserId, email, emailVerified, now, now],
+      )).rows[0];
+
+      // Update users table with verified email
+      if (email && emailVerified) {
+        await client.query(
+          `UPDATE users SET email = COALESCE(email, $1), email_verified = TRUE WHERE id = $2`,
+          [email, userId]
+        );
+      }
+
+      await client.query("COMMIT");
+      return toProviderIdentity(r);
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
   },
   async createProviderIdentity(
     id: string,
@@ -396,7 +499,7 @@ export const repo = {
         await client.query("ROLLBACK");
         throw new Error("Reset token has already been used or expired");
       }
-      await client.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [newPasswordHash, userId]);
+      await client.query(`UPDATE users SET password_hash = $1, email_verified = TRUE WHERE id = $2`, [newPasswordHash, userId]);
       await client.query(`UPDATE sessions SET revoked_at = $1 WHERE user_id = $2 AND revoked_at IS NULL`, [Date.now(), userId]);
       await client.query("COMMIT");
     } catch (err) {

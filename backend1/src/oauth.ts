@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import * as jose from "jose";
 import { config } from "./config.ts";
 import { redis, K } from "./redis.ts";
@@ -18,6 +18,11 @@ interface StoredState {
   createdAt: number;
 }
 
+export interface StoredExchangeData {
+  token: string;
+  userId: string;
+}
+
 const GOOGLE_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
@@ -35,6 +40,72 @@ export function setMockJwks(mock: jose.JWTVerifyGetKey | null): void {
   jwksCache = mock;
 }
 
+let mockStateStore: Map<string, { value: string; expiresAt: number }> | null = null;
+/** Testing hook: in-memory state store for tests when Redis is not running */
+export function setMockStateStore(mock: Map<string, { value: string; expiresAt: number }> | null): void {
+  mockStateStore = mock;
+}
+
+let mockExchangeStore: Map<string, { value: string; expiresAt: number }> | null = null;
+/** Testing hook: in-memory exchange store for tests when Redis is not running */
+export function setMockExchangeStore(mock: Map<string, { value: string; expiresAt: number }> | null): void {
+  mockExchangeStore = mock;
+}
+
+/** One-way SHA-256 hash of single-use authorization exchange codes */
+export function hashExchangeCode(code: string): string {
+  return createHash("sha256").update(code).digest("hex");
+}
+
+/**
+ * Creates a cryptographically random, short-lived (60s) single-use exchange code.
+ * Only the SHA-256 hash of the code is persisted server-side.
+ */
+export async function createOAuthExchangeCode(token: string, userId: string): Promise<string> {
+  const rawCode = randomBytes(32).toString("base64url");
+  const codeHash = hashExchangeCode(rawCode);
+  const data: StoredExchangeData = { token, userId };
+  const serialized = JSON.stringify(data);
+
+  if (mockExchangeStore) {
+    mockExchangeStore.set(codeHash, { value: serialized, expiresAt: Date.now() + 60_000 });
+    return rawCode;
+  }
+
+  // 60 second single-use expiration in Redis
+  await redis.set(K.oauthExchange(codeHash), serialized, "EX", 60);
+  return rawCode;
+}
+
+/**
+ * Atomically consumes and validates an authorization exchange code.
+ * Ensures single-use redemption and guarantees replay protection.
+ */
+export async function redeemOAuthExchangeCode(rawCode: string): Promise<StoredExchangeData | null> {
+  if (!rawCode || typeof rawCode !== "string") return null;
+  const codeHash = hashExchangeCode(rawCode);
+
+  if (mockExchangeStore) {
+    const entry = mockExchangeStore.get(codeHash);
+    if (!entry) return null;
+    mockExchangeStore.delete(codeHash); // Atomic consumption
+    if (Date.now() > entry.expiresAt) return null; // Expired
+    try {
+      return JSON.parse(entry.value) as StoredExchangeData;
+    } catch {
+      return null;
+    }
+  }
+
+  const raw = await redis.getdel(K.oauthExchange(codeHash));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as StoredExchangeData;
+  } catch {
+    return null;
+  }
+}
+
 /** Generate cryptographically secure state and nonce for OAuth 2.0 / OIDC */
 export async function createAuthorizationRequest(customRedirectUri?: string): Promise<{ url: string; state: string }> {
   if (!config.googleClientId) {
@@ -49,8 +120,12 @@ export async function createAuthorizationRequest(customRedirectUri?: string): Pr
   const nonce = randomBytes(24).toString("hex");
   const stored: StoredState = { nonce, redirectUri, createdAt: Date.now() };
 
-  // 10 minute expiration for login completion
-  await redis.set(K.oauthState(state), JSON.stringify(stored), "PX", 600_000);
+  if (mockStateStore) {
+    mockStateStore.set(state, { value: JSON.stringify(stored), expiresAt: Date.now() + 600_000 });
+  } else {
+    // 10 minute expiration for login completion
+    await redis.set(K.oauthState(state), JSON.stringify(stored), "PX", 600_000);
+  }
 
   const params = new URLSearchParams({
     client_id: config.googleClientId,
@@ -68,6 +143,19 @@ export async function createAuthorizationRequest(customRedirectUri?: string): Pr
 /** Atomically validate OAuth state from Redis, preventing replay attacks */
 export async function consumeOAuthState(state: string): Promise<StoredState | null> {
   if (!state) return null;
+
+  if (mockStateStore) {
+    const entry = mockStateStore.get(state);
+    if (!entry) return null;
+    mockStateStore.delete(state); // Atomic deletion
+    if (Date.now() > entry.expiresAt) return null;
+    try {
+      return JSON.parse(entry.value) as StoredState;
+    } catch {
+      return null;
+    }
+  }
+
   const raw = await redis.getdel(K.oauthState(state));
   if (!raw) return null;
   try {
