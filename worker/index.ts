@@ -101,6 +101,14 @@ export class GameServer extends DurableObject<Env> {
 
   private async startAndWaitForPort(): Promise<void> {
     const container = this.ctx.container!;
+    if (container.running) {
+      const info = await container.inspect();
+      if (info && info.image !== container.images.base) {
+        console.log("New container image deployed, restarting container:", info.image, "->", container.images.base);
+        await container.destroy();
+      }
+    }
+
     if (!container.running) {
       const frontendUrl = this.env.FRONTEND_URL ?? "https://gambit-mocha.vercel.app";
       const allowedOrigins = this.env.ALLOWED_ORIGINS ?? "https://gambit-mocha.vercel.app,https://chessandwhatever.codealisha99.workers.dev,http://localhost:5173";
