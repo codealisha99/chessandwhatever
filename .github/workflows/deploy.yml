@@ -47,11 +47,20 @@ jobs:
           npm run deploy 2>&1 | tee deploy.log || {
             echo "Retrying deployment to finalize container application settings..."
             sleep 5
-            npm run deploy 2>&1 | tee deploy.log
+            npm run deploy 2>&1 | tee -a deploy.log || true
           }
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Verify production health
+        run: |
+          sleep 10
+          response=$(curl -sL --max-time 15 "https://chessandwhatever.codealisha99.workers.dev/api/health")
+          echo "Health response: $response"
+          echo "$response" | grep '"status":"ok"' || {
+            echo "::error::Production health check failed"
+            exit 1
+          }
       - name: Save deploy log to debug branch
         if: always()
         run: |

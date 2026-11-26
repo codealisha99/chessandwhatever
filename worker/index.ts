@@ -157,20 +157,20 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
 
-    // Serve static SPA assets if not /api/ and not /ws
-    if (pathname !== "/ws" && !pathname.startsWith("/api/")) {
+    // Serve static SPA assets if not /api/, not /ws, and not /health
+    if (pathname !== "/ws" && pathname !== "/health" && !pathname.startsWith("/api/")) {
       return env.ASSETS.fetch(request);
     }
 
-    // Handle CORS preflight for /api/
-    if (request.method === "OPTIONS" && pathname.startsWith("/api/")) {
+    // Handle CORS preflight for /api/ and /health
+    if (request.method === "OPTIONS" && (pathname.startsWith("/api/") || pathname === "/health")) {
       return handleCorsPreflight(request, env);
     }
 
     const id = env.GAME.idFromName("main");
     try {
       const response = await env.GAME.get(id).fetch(request);
-      if (pathname.startsWith("/api/")) {
+      if (pathname.startsWith("/api/") || pathname === "/health") {
         return addCorsHeaders(response, request, env);
       }
       return response;
