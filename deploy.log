@@ -1,0 +1,209 @@
+
+> deploy
+> npm run build && wrangler deploy
+
+
+> build
+> npm --prefix frontend run build
+
+
+> frontend@0.0.0 build
+> tsc -b && vite build
+
+[36mvite v8.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 2126 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                           1.16 kB │ gzip:  0.58 kB
+dist/assets/index-DmVCLzD2.css           63.82 kB │ gzip: 11.84 kB
+dist/assets/play-BbGPRLVg.js              0.21 kB │ gzip:  0.19 kB
+dist/assets/download-BaJ35ejf.js          0.25 kB │ gzip:  0.21 kB
+dist/assets/eye-BD-ZEiQQ.js               0.28 kB │ gzip:  0.22 kB
+dist/assets/flag-TfHnXWoY.js              0.46 kB │ gzip:  0.31 kB
+dist/assets/NotFound-DkbRQWZH.js          0.68 kB │ gzip:  0.41 kB
+dist/assets/AuthCallback-BrPMLjVy.js      0.96 kB │ gzip:  0.58 kB
+dist/assets/Join-CsHDQG9M.js              1.76 kB │ gzip:  0.93 kB
+dist/assets/Watch-DvByJdQV.js             2.64 kB │ gzip:  1.23 kB
+dist/assets/ForgotPassword-DMQFc8xo.js    2.80 kB │ gzip:  1.26 kB
+dist/assets/Leaderboard-CPoRdoP3.js       3.15 kB │ gzip:  1.30 kB
+dist/assets/Profile-Ds5bAn1C.js           3.27 kB │ gzip:  1.46 kB
+dist/assets/ResetPassword-C0tJAAYN.js     3.96 kB │ gzip:  1.52 kB
+dist/assets/Auth-B_HAcGOb.js              4.91 kB │ gzip:  2.20 kB
+dist/assets/PlayerStrip--IWrNtpP.js       5.68 kB │ gzip:  2.30 kB
+dist/assets/api-DAMvATbL.js               7.78 kB │ gzip:  3.45 kB
+dist/assets/Analysis-Dg1YUIe2.js          8.43 kB │ gzip:  3.49 kB
+dist/assets/Computer-BHY4N_0Q.js         12.13 kB │ gzip:  4.53 kB
+dist/assets/LiveGame-CVFXr404.js         14.62 kB │ gzip:  5.15 kB
+dist/assets/jsx-runtime-Do0lnEPE.js      49.03 kB │ gzip: 17.47 kB
+dist/assets/index-CXXDfdn1.js           311.97 kB │ gzip: 99.88 kB
+
+[32m✓ built in 309ms[39m
+
+ ⛅️ wrangler 4.166.0
+────────────────────
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 747B done
+#1 DONE 0.0s
+
+#2 [auth] library/node:pull token for registry-1.docker.io
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:24-alpine
+#3 DONE 0.7s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 69B done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 187.15kB done
+#5 DONE 0.0s
+
+#6 [1/7] FROM docker.io/library/node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5
+#6 resolve docker.io/library/node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 done
+#6 sha256:7bb632bc9bd793a348866a7dd7920cf89dfc87205c6d38cda182ea6d8065b8e5 442B / 442B 0.1s done
+#6 sha256:7eb569707982863466c2b0bcfddda86fb4842fccfaec088d1354f6a29e2856bb 1.26MB / 1.26MB 0.2s done
+#6 sha256:86781d25d3989ead8f09c45716da0159c1dd0be2c753a51f15b6c60f4b9a97db 0B / 57.42MB 0.2s
+#6 sha256:881fc932939efef04ca120ad44bbd2c0917851eb247aa4995428afb1e80ede17 3.85MB / 3.85MB 0.2s done
+#6 sha256:86781d25d3989ead8f09c45716da0159c1dd0be2c753a51f15b6c60f4b9a97db 57.42MB / 57.42MB 0.5s
+#6 extracting sha256:881fc932939efef04ca120ad44bbd2c0917851eb247aa4995428afb1e80ede17 0.1s done
+#6 sha256:86781d25d3989ead8f09c45716da0159c1dd0be2c753a51f15b6c60f4b9a97db 57.42MB / 57.42MB 0.7s done
+#6 extracting sha256:86781d25d3989ead8f09c45716da0159c1dd0be2c753a51f15b6c60f4b9a97db
+#6 extracting sha256:86781d25d3989ead8f09c45716da0159c1dd0be2c753a51f15b6c60f4b9a97db 0.8s done
+#6 DONE 1.6s
+
+#6 [1/7] FROM docker.io/library/node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5
+#6 extracting sha256:7eb569707982863466c2b0bcfddda86fb4842fccfaec088d1354f6a29e2856bb 0.0s done
+#6 extracting sha256:7bb632bc9bd793a348866a7dd7920cf89dfc87205c6d38cda182ea6d8065b8e5 done
+#6 DONE 1.6s
+
+#7 [2/7] RUN apk add --no-cache redis
+#7 0.514 (1/1) Installing redis (8.8.0-r0)
+#7 0.538   Executing redis-8.8.0-r0.pre-install
+#7 0.567   Executing redis-8.8.0-r0.post-install
+#7 0.570 Executing busybox-1.37.0-r31.trigger
+#7 0.576 OK: 15.1 MiB in 20 packages
+#7 DONE 3.3s
+
+#8 [3/7] WORKDIR /app
+#8 DONE 0.0s
+
+#9 [4/7] COPY package.json package-lock.json ./
+#9 DONE 0.0s
+
+#10 [5/7] RUN npm ci --omit=dev
+#10 0.862 
+#10 0.862 added 25 packages, and audited 26 packages in 670ms
+#10 0.862 
+#10 0.862 2 packages are looking for funding
+#10 0.862   run `npm fund` for details
+#10 0.863 
+#10 0.863 found 0 vulnerabilities
+#10 0.864 npm notice
+#10 0.864 npm notice New major version of npm available! 11.19.1 -> 12.2.3
+#10 0.864 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+#10 0.864 npm notice To update run: npm install -g npm@12.2.3
+#10 0.864 npm notice
+#10 DONE 1.0s
+
+#11 [6/7] COPY src ./src
+#11 DONE 0.0s
+
+#12 [7/7] RUN mkdir -p /app/data && chown -R node:node /app
+#12 DONE 0.3s
+
+#13 exporting to image
+#13 exporting layers
+#13 exporting layers 0.3s done
+#13 exporting manifest sha256:97e3e5c8135614baf04d9827e14a78a986116313a68d08c30b59e0b3416542f6 done
+#13 exporting config sha256:fe86ea58077dd15d91c3b8b2ae25a836fdb7ec99e97bc6fbe0b772c47f830058 done
+#13 naming to docker.io/library/chessandwhatever-gameserver-base:wrangler-mwxxphtc done
+#13 unpacking to docker.io/library/chessandwhatever-gameserver-base:wrangler-mwxxphtc
+#13 unpacking to docker.io/library/chessandwhatever-gameserver-base:wrangler-mwxxphtc 0.2s done
+#13 DONE 0.5s
+
+WARNING! Your credentials are stored unencrypted in '/home/runner/.docker/config.json'.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+Login Succeeded
+Image does not exist remotely, pushing: registry.cloudflare.com/865c4558cfd8ff508f2b90582781cb98/chessandwhatever-gameserver-base:wrangler-mwxxphtc
+The push refers to repository [registry.cloudflare.com/865c4558cfd8ff508f2b90582781cb98/chessandwhatever-gameserver-base]
+881fc932939e: Waiting
+86781d25d398: Waiting
+7bb632bc9bd7: Waiting
+152f63275130: Waiting
+67a48001644e: Waiting
+4d5287be95e6: Waiting
+87bfc8194724: Waiting
+8971ac4bedfe: Waiting
+fceafd9fad4b: Waiting
+7eb569707982: Waiting
+4d5287be95e6: Waiting
+87bfc8194724: Waiting
+8971ac4bedfe: Waiting
+fceafd9fad4b: Waiting
+7eb569707982: Layer already exists
+881fc932939e: Layer already exists
+86781d25d398: Waiting
+7bb632bc9bd7: Layer already exists
+152f63275130: Waiting
+67a48001644e: Waiting
+4d5287be95e6: Waiting
+87bfc8194724: Waiting
+8971ac4bedfe: Waiting
+fceafd9fad4b: Waiting
+86781d25d398: Layer already exists
+152f63275130: Waiting
+67a48001644e: Waiting
+152f63275130: Waiting
+67a48001644e: Waiting
+4d5287be95e6: Waiting
+87bfc8194724: Waiting
+8971ac4bedfe: Waiting
+fceafd9fad4b: Waiting
+67a48001644e: Waiting
+4d5287be95e6: Waiting
+87bfc8194724: Waiting
+8971ac4bedfe: Waiting
+fceafd9fad4b: Waiting
+fceafd9fad4b: Waiting
+152f63275130: Pushed
+8971ac4bedfe: Pushed
+87bfc8194724: Pushed
+fceafd9fad4b: Pushed
+67a48001644e: Pushed
+4d5287be95e6: Pushed
+wrangler-mwxxphtc: digest: sha256:97e3e5c8135614baf04d9827e14a78a986116313a68d08c30b59e0b3416542f6 size: 2271
+├ Preparing base for Cloudflare Containers
+│   registry.cloudflare.com/865c4558cfd8ff508f2b90582781cb98/chessandwhatever-gameserver-base@sha256:97e3e5c8135614baf04d9827e14a78a986116313a68d08c30b59e0b3416542f6
+│
+├ base is ready to run
+│   registry.cloudflare.com/865c4558cfd8ff508f2b90582781cb98/chessandwhatever-gameserver-base@sha256:97e3e5c8135614baf04d9827e14a78a986116313a68d08c30b59e0b3416542f6
+│
+🌀 Building list of assets...
+✨ Read 43 files from the assets directory /home/runner/work/chessandwhatever/chessandwhatever/frontend/dist
+🌀 Starting asset upload...
+No updated asset files to upload. Proceeding with deployment...
+Total Upload: 6.49 KiB / gzip: 2.29 KiB
+Your Worker has access to the following bindings:
+Binding                                                                   Resource                  
+env.GAME (GameServer)                                                     Durable Object            
+env.ASSETS                                                                Assets                    
+env.FRONTEND_URL ("https://gambit-mocha.vercel.app")                      Environment Variable      
+env.ALLOWED_ORIGINS ("https://gambit-mocha.vercel.app,https...")          Environment Variable      
+env.GOOGLE_REDIRECT_URI ("https://chessandwhatever.codealisha99...")      Environment Variable      
+
+The following containers are available:
+- GameServer (durable_object)
+
+Uploaded chessandwhatever (21.30 sec)
+Deployed chessandwhatever triggers (0.42 sec)
+  https://chessandwhatever.codealisha99.workers.dev
+Current Version ID: f5c2d3a8-c9ab-4f23-b1ee-8b8a653820d5
+Untagged: chessandwhatever-gameserver-base:wrangler-mwxxphtc
+
+Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
