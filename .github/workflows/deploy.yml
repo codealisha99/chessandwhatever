@@ -43,7 +43,12 @@ jobs:
         id: deploy
         run: |
           set -o pipefail
-          npm run deploy 2>&1 | tee deploy.log
+          # Cloudflare Containers requires a second run on initial provisioning to finalize DO container application settings
+          npm run deploy 2>&1 | tee deploy.log || {
+            echo "Retrying deployment to finalize container application settings..."
+            sleep 5
+            npm run deploy 2>&1 | tee deploy.log
+          }
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

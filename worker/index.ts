@@ -175,9 +175,16 @@ export default {
       }
       return response;
     } catch (err) {
-      console.error("GameServer error:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("GameServer error:", message);
+      const missingSecrets: string[] = [];
+      if (!env.DATABASE_URL) missingSecrets.push("DATABASE_URL");
+      if (!env.AUTH_SECRET) missingSecrets.push("AUTH_SECRET");
+      const errorMsg = missingSecrets.length > 0
+        ? `Missing required Cloudflare Worker secret(s): ${missingSecrets.join(", ")}.`
+        : "Game server is starting up or temporarily unavailable.";
       const errorResponse = new Response(
-        JSON.stringify({ ok: false, error: "Game server is starting up or temporarily unavailable." }),
+        JSON.stringify({ ok: false, error: errorMsg, details: message }),
         { status: 503, headers: { "Content-Type": "application/json" } }
       );
       return addCorsHeaders(errorResponse, request, env);
