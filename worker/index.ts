@@ -93,6 +93,7 @@ export class GameServer extends DurableObject<Env> {
       method: request.method,
       headers,
       body: hasBody ? request.body : undefined,
+      redirect: "manual",
       ...(hasBody ? { duplex: "half" as const } : {}),
     });
 

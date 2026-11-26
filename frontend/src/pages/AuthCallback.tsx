@@ -12,7 +12,6 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const code = params.get('code')
-    const token = params.get('token')
     const err = params.get('error')
 
     if (err) {
@@ -35,19 +34,7 @@ export default function AuthCallback() {
       return
     }
 
-    // Fallback for direct token (backward compatibility)
-    if (token) {
-      setAuthToken(token)
-        .then(() => {
-          navigate('/', { replace: true })
-        })
-        .catch((e: Error) => {
-          setError(e.message || 'Failed to authenticate with token.')
-        })
-      return
-    }
-
-    setError('No authorization code or token received.')
+    setError('No authorization code received.')
   }, [params, setAuthToken, navigate])
 
   if (error) {
