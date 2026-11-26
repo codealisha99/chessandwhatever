@@ -23,7 +23,18 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       # builds the SPA, builds + pushes the container image (Docker is preinstalled on the runner), deploys the Worker
-      - run: npm run deploy
+      - name: Deploy to Cloudflare
+        id: deploy
+        run: |
+          set -o pipefail
+          npm run deploy 2>&1 | tee deploy.log
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Report deploy status
+        if: always()
+        run: |
+          echo "### Deploy Log" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          if [ -f deploy.log ]; then cat deploy.log >> $GITHUB_STEP_SUMMARY; else echo "No deploy.log found"; fi
+          echo '```' >> $GITHUB_STEP_SUMMARY
