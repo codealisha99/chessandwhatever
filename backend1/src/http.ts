@@ -312,7 +312,7 @@ export function createHttpHandler(manager: GameManager) {
       }
       ok(res, await repo.findUserById(user.id));
     }],
-    ["GET", /^\/api\/health$/, async (_req, res) => ok(res, { status: "ok", instance: config.instanceId, ...(await manager.stats()) })],
+    ["GET", /^\/(?:api\/)?health$/, async (_req, res) => ok(res, { status: "ok", instance: config.instanceId, ...(await manager.stats()) })],
     ["GET", /^\/api\/stats$/, async (_req, res) => ok(res, { ...(await manager.stats()), ...(await repo.counts()) })],
     ["GET", /^\/api\/leaderboard$/, async (_req, res) => ok(res, await repo.leaderboard(100))],
     ["GET", /^\/api\/games\/live$/, async (_req, res) => ok(res, await manager.liveGames())],
@@ -331,7 +331,7 @@ export function createHttpHandler(manager: GameManager) {
   return async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     try {
-      if (url.pathname.startsWith("/api/")) {
+      if (url.pathname.startsWith("/api/") || url.pathname === "/health") {
         const origin = req.headers.origin;
         if (origin && config.corsOrigins.has(origin)) {
           res.setHeader("Access-Control-Allow-Origin", origin);

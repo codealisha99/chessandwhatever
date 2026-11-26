@@ -92,7 +92,7 @@ try {
   log.error((err as Error).message);
   process.exit(1);
 }
-server.listen(config.port, () => log.info(`chess server on http://localhost:${config.port}`, { instance: config.instanceId }));
+server.listen({ port: config.port, host: "0.0.0.0" }, () => log.info(`chess server on http://0.0.0.0:${config.port}`, { instance: config.instanceId }));
 
 let stopping = false;
 async function shutdown(signal: string): Promise<void> {

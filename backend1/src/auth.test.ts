@@ -6,7 +6,9 @@ import { hashPassword, hashResetToken, issueToken, verifyPassword, verifyToken }
 import { config } from "./config.ts";
 import { DevelopmentEmailService } from "./email.ts";
 import { createAuthorizationRequest, setMockJwks, verifyGoogleIdToken } from "./oauth.ts";
-import { closeRedis } from "./redis.ts";
+import { closeRedis, redis } from "./redis.ts";
+
+const redisUp = await redis.ping().then(() => true, () => false);
 
 after(async () => {
   await closeRedis().catch(() => {});
@@ -73,7 +75,7 @@ test("Development email service captures reset emails in memory", async () => {
   assert.ok(msg.html.includes(rawToken), "Email HTML should contain reset token");
 });
 
-test("OAuth state generation and nonce validation", async () => {
+test("OAuth state generation and nonce validation", { skip: !redisUp && "Redis not reachable" }, async () => {
   const origClientId = config.googleClientId;
   const origRedirectUri = config.googleRedirectUri;
   config.googleClientId = "test-google-client-id";
@@ -180,7 +182,7 @@ test("Google ID token verification with mock JWKS", async () => {
   }
 });
 
-test("WebSocket single-use ticket pattern", async () => {
+test("WebSocket single-use ticket pattern", { skip: !redisUp && "Redis not reachable" }, async () => {
   // Test ticket consumption: ticket can be consumed exactly once
   const ticket = randomUUID();
   const userId = "u123";

@@ -93,6 +93,7 @@ function connect(ticket: string): Promise<Client> {
 }
 
 before(async () => {
+  if (!DATABASE_URL) return;
   await startServer();
 });
 
@@ -100,7 +101,7 @@ after(() => {
   proc?.kill("SIGKILL");
 });
 
-test("private invite room creation, joining, moves and chat", async () => {
+test("private invite room creation, joining, moves and chat", { skip: !DATABASE_URL && "DATABASE_URL not set" }, async () => {
   const g1 = await api("/auth/guest");
   const g2 = await api("/auth/guest");
 

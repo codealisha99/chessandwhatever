@@ -8,6 +8,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY src ./src
+RUN mkdir -p /app/data && chown -R node:node /app
 USER node
 EXPOSE 8080
 CMD ["sh", "-c", "redis-server --save '' --appendonly no --daemonize yes && exec node src/index.ts"]

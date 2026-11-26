@@ -3,6 +3,9 @@
   "name": "gambit",
   "main": "worker/index.ts",
   "compatibility_date": "2026-11-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "assets": {
     "directory": "frontend/dist",
     "binding": "ASSETS",
@@ -12,16 +15,24 @@
   "containers": [
     {
       "class_name": "GameServer",
-      "image": "./backend1/Dockerfile",
-      "image_build_context": "./backend1",
-      "instance_type": "basic",
-      "max_instances": 1
+      "scheduling_policy": "durable_object",
+      "images": {
+        "base": {
+          "dockerfile": "./backend1/Dockerfile",
+          "build_context": "./backend1"
+        }
+      }
     }
   ],
   "durable_objects": {
     "bindings": [{ "name": "GAME", "class_name": "GameServer" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameServer"] }],
+  "exports": {
+    "GameServer": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
   // public origin, used for password-reset links and the Google sign-in redirect
   "vars": { "FRONTEND_URL": "https://gambit.codealisha99.workers.dev" },
   "observability": { "enabled": true }
